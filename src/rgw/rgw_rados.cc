@@ -709,12 +709,6 @@ int RGWRados::put_obj_data(void *ctx, rgw_obj& obj,
   return aio_wait(handle);
 }
 
-static void complete_aio_operate(completion_t cb, void *arg)
-{
-  ObjectWriteOperation *op = (ObjectWriteOperation *)arg;
-  delete op;
-}
-
 int RGWRados::aio_put_obj_data(void *ctx, rgw_obj& obj,
 			       const char *data, off_t ofs, size_t len, bool exclusive,
                                void **handle)
@@ -733,20 +727,20 @@ int RGWRados::aio_put_obj_data(void *ctx, rgw_obj& obj,
   bufferlist bl;
   bl.append(data, len);
 
-  ObjectWriteOperation *op = new ObjectWriteOperation;
-
-  AioCompletion *c = librados::Rados::aio_create_completion(op, NULL, complete_aio_operate);
+  AioCompletion *c = librados::Rados::aio_create_completion(NULL, NULL, NULL);
   *handle = c;
+  
+  ObjectWriteOperation op;
 
   if (exclusive)
-    op->create(true);
+    op.create(true);
 
   if (ofs == -1) {
-    op->write_full(bl);
+    op.write_full(bl);
   } else {
-    op->write(ofs, bl);
+    op.write(ofs, bl);
   }
-  r = io_ctx.aio_operate(oid, c, op);
+  r = io_ctx.aio_operate(oid, c, &op);
   if (r < 0)
     return r;
 
@@ -964,31 +958,30 @@ int RGWRados::delete_obj_impl(void *ctx, rgw_obj& obj, bool sync)
 
   io_ctx.locator_set_key(key);
 
-  ObjectWriteOperation *op = new ObjectWriteOperation;
+  ObjectWriteOperation op;
 
   RGWObjState *state;
-  r = prepare_atomic_for_write(rctx, obj, io_ctx, oid, *op, &state);
+  r = prepare_atomic_for_write(rctx, obj, io_ctx, oid, op, &state);
   if (r < 0)
     return r;
 
   bool ret_not_existed = (state && !state->exists);
 
   string tag;
-  op->remove();
+  op.remove();
   if (sync) {
     r = prepare_update_index(state, bucket, obj, tag);
     if (r < 0)
       return r;
-    r = io_ctx.operate(oid, op);
-    delete op;
+    r = io_ctx.operate(oid, &op);
 
     if ((r >= 0 || r == -ENOENT) && bucket.marker.size()) {
       uint64_t epoch = io_ctx.get_last_version();
       r = complete_update_index_del(bucket, obj.object, tag, epoch);
     }
   } else {
-    librados::AioCompletion *completion = rados->aio_create_completion(op, NULL, complete_aio_operate);
-    r = io_ctx.aio_operate(oid, completion, op);
+    librados::AioCompletion *completion = rados->aio_create_completion(NULL, NULL, NULL);
+    r = io_ctx.aio_operate(oid, completion, &op);
     completion->release();
   }
 
