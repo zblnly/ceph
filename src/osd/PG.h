@@ -158,6 +158,7 @@ public:
   };
 
   std::string gen_prefix() const;
+  bool should_crash;
 
   /*
    * PG::Info - summary of PG statistics.
@@ -577,8 +578,10 @@ public:
     list<Entry>::iterator complete_to;  // not inclusive of referenced item
     version_t last_requested;           // last object requested by primary
 
+    PG *debug_pg;
+
     /****/
-    IndexedLog() {}
+    IndexedLog(PG *pg) : debug_pg(pg) {}
 
     void claim_log(const Log& o) {
       log = o.log;
@@ -610,43 +613,11 @@ public:
       return p->second->version;    
     }
 
-    void index() {
-      objects.clear();
-      caller_ops.clear();
-      for (list<Entry>::iterator i = log.begin();
-           i != log.end();
-           i++) {
-        objects[i->soid] = &(*i);
-	if (i->reqid_is_indexed()) {
-	  //assert(caller_ops.count(i->reqid) == 0);  // divergent merge_log indexes new before unindexing old
-	  caller_ops[i->reqid] = &(*i);
-	}
-      }
-    }
+    void index();
+    void index(Entry& e);
 
-    void index(Entry& e) {
-      if (objects.count(e.soid) == 0 || 
-          objects[e.soid]->version < e.version)
-        objects[e.soid] = &e;
-      if (e.reqid_is_indexed()) {
-	//assert(caller_ops.count(i->reqid) == 0);  // divergent merge_log indexes new before unindexing old
-	caller_ops[e.reqid] = &e;
-      }
-    }
-    void unindex() {
-      objects.clear();
-      caller_ops.clear();
-    }
-    void unindex(Entry& e) {
-      // NOTE: this only works if we remove from the _tail_ of the log!
-      if (objects.count(e.soid) && objects[e.soid]->version == e.version)
-        objects.erase(e.soid);
-      if (e.reqid_is_indexed() &&
-	  caller_ops.count(e.reqid) &&  // divergent merge_log indexes new before unindexing old
-	  caller_ops[e.reqid] == &e)
-	caller_ops.erase(e.reqid);
-    }
-
+    void unindex();
+    void unindex(Entry& e);
 
     // accessors
     Entry *is_updated(const hobject_t& oid) {
@@ -657,23 +628,13 @@ public:
       if (objects.count(oid) && objects[oid]->is_delete()) return objects[oid];
       return 0;
     }
-    
+
     // actors
-    void add(Entry& e) {
-      // add to log
-      log.push_back(e);
-      assert(e.version > head);
-      assert(head.version == 0 || e.version.version > head.version);
-      head = e.version;
-
-      // to our index
-      objects[e.soid] = &(log.back());
-      caller_ops[e.reqid] = &(log.back());
-    }
-
+    void add(Entry& e);
     void trim(ObjectStore::Transaction &t, eversion_t s);
 
     ostream& print(ostream& out) const;
+    ostream& audit(ostream& out) const;
   };
   
 
@@ -1653,10 +1614,11 @@ public:
 
  public:  
   PG(OSD *o, PGPool *_pool, pg_t p, const hobject_t& loid, const hobject_t& ioid) : 
+    should_crash(false),
     osd(o), pool(_pool),
     _lock("PG::_lock"),
     ref(0), deleting(false), dirty_info(false), dirty_log(false),
-    info(p), coll(p), log_oid(loid), biginfo_oid(ioid),
+    info(p), coll(p), log(this), log_oid(loid), biginfo_oid(ioid),
     recovery_item(this), scrub_item(this), scrub_finalize_item(this), snap_trim_item(this), remove_item(this), stat_queue_item(this),
     recovery_ops_active(0),
     waiting_on_backfill(0),

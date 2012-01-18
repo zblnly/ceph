@@ -32,44 +32,9 @@
 
 #define DOUT_SUBSYS osd
 #undef dout_prefix
-#define dout_prefix _prefix(_dout, this)
-static ostream& _prefix(std::ostream *_dout, const PG *pg) {
-  return *_dout << pg->gen_prefix();
-}
-
-/*
- * take osd->map_lock to get a valid osdmap reference
- */
-void PG::lock(bool no_lockdep)
-{
-  osd->map_lock.get_read();
-  OSDMapRef map = osd->osdmap;
-  osd->map_lock.put_read();
-  _lock.Lock(no_lockdep);
-  osdmap_ref.swap(map);
-}
-
-/*
- * caller holds osd->map_lock, no need to take it to get a valid
- * osdmap reference.
- */
-void PG::lock_with_map_lock_held()
-{
-  _lock.Lock();
-  osdmap_ref = osd->osdmap;
-}
-
-std::string PG::gen_prefix() const
-{
-  stringstream out;
-  OSDMapRef mapref = osdmap_ref;
-  out << "osd." << osd->whoami 
-      << " " << (mapref ? mapref->get_epoch():0)
-      << " " << *this << " ";
-  return out.str();
-}
   
 /******* PG::Log ********/
+#define dout_prefix (*_dout << (debug_pg ? debug_pg->gen_prefix() : string()) << " IndexedLog: ")
 
 void PG::Log::copy_after(const Log &other, eversion_t v) 
 {
@@ -127,15 +92,15 @@ void PG::IndexedLog::trim(ObjectStore::Transaction& t, eversion_t s)
 {
   if (complete_to != log.end() &&
       complete_to->version <= s) {
-    generic_dout(0) << " bad trim to " << s << " when complete_to is " << complete_to->version
-		    << " on " << *this << dendl;
+    dout(0) << " bad trim to " << s << " when complete_to is " << complete_to->version
+	    << " on " << *this << dendl;
   }
 
   while (!log.empty()) {
     Entry &e = *log.begin();
     if (e.version > s)
       break;
-    generic_dout(20) << "trim " << e << dendl;
+    dout(20) << "trim " << e << dendl;
     unindex(e);         // remove from index,
     log.pop_front();    // from log
   }
@@ -145,8 +110,106 @@ void PG::IndexedLog::trim(ObjectStore::Transaction& t, eversion_t s)
     tail = s;
 }
 
+void PG::IndexedLog::index()
+{
+  objects.clear();
+  caller_ops.clear();
+  for (list<Entry>::iterator i = log.begin();
+       i != log.end();
+       i++) {
+    objects[i->soid] = &(*i);
+    if (i->reqid_is_indexed()) {
+      //assert(caller_ops.count(i->reqid) == 0);  // divergent merge_log indexes new before unindexing old
+      dout(25) << "index() setting caller_ops" << i->reqid << " to " << *i << dendl;
+      caller_ops[i->reqid] = &(*i);
+    }
+  }
+}
+
+void PG::IndexedLog::index(Entry& e)
+{
+  dout(25) << "index(entry) " << e << dendl;
+  if (objects.count(e.soid) == 0 ||
+      objects[e.soid]->version < e.version)
+    objects[e.soid] = &e;
+  if (e.reqid_is_indexed()) {
+    //assert(caller_ops.count(i->reqid) == 0);  // divergent merge_log indexes new before unindexing old
+    dout(25) << "index(entry) updating caller_ops for " << e << dendl;
+    caller_ops[e.reqid] = &e;
+  }
+}
+
+void PG::IndexedLog::add(Entry& e)
+{
+  dout(25) << "adding entry " << e << dendl;
+  // add to log
+  log.push_back(e);
+  assert(e.version > head);
+  assert(head.version == 0 || e.version.version > head.version);
+  head = e.version;
+
+  // to our index
+  objects[e.soid] = &(log.back());
+  caller_ops[e.reqid] = &(log.back());
+}
+
+void PG::IndexedLog::unindex()
+{
+  dout(25) << "unindex everything" << dendl;
+  objects.clear();
+  caller_ops.clear();
+}
+
+void PG::IndexedLog::unindex(Entry& e)
+{
+  dout(25) << "unindex(entry) " << e << dendl;
+  // NOTE: this only works if we remove from the _tail_ of the log!
+  if (objects.count(e.soid) && objects[e.soid]->version == e.version)
+    objects.erase(e.soid);
+  if (e.reqid_is_indexed() &&
+      caller_ops.count(e.reqid) &&  // divergent merge_log indexes new before unindexing old
+      caller_ops[e.reqid] == &e)
+    caller_ops.erase(e.reqid);
+}
 
 /********* PG **********/
+#undef dout_prefix
+#define dout_prefix _prefix(_dout, this)
+static ostream& _prefix(std::ostream *_dout, const PG *pg) {
+  return *_dout << pg->gen_prefix();
+}
+
+/*
+ * take osd->map_lock to get a valid osdmap reference
+ */
+void PG::lock(bool no_lockdep)
+{
+  osd->map_lock.get_read();
+  OSDMapRef map = osd->osdmap;
+  osd->map_lock.put_read();
+  _lock.Lock(no_lockdep);
+  osdmap_ref.swap(map);
+}
+
+/*
+ * caller holds osd->map_lock, no need to take it to get a valid
+ * osdmap reference.
+ */
+void PG::lock_with_map_lock_held()
+{
+  _lock.Lock();
+  osdmap_ref = osd->osdmap;
+}
+
+std::string PG::gen_prefix() const
+{
+  stringstream out;
+  OSDMapRef mapref = osdmap_ref;
+  out << "osd." << osd->whoami
+      << " " << (mapref ? mapref->get_epoch():0)
+      << " " << *this << " ";
+  return out.str();
+}
 
 void PG::proc_master_log(ObjectStore::Transaction& t, Info &oinfo, Log &olog, Missing& omissing, int from)
 {
@@ -638,6 +701,25 @@ ostream& PG::IndexedLog::print(ostream& out) const
        p++) {
     out << *p << " " << (logged_object(p->soid) ? "indexed":"NOT INDEXED") << std::endl;
     assert(!p->reqid_is_indexed() || logged_req(p->reqid));
+  }
+  return out;
+}
+
+ostream& PG::IndexedLog::audit(ostream& out) const
+{
+  out << *this << " ";
+  for (hash_map<osd_reqid_t,Entry*>::const_iterator it = caller_ops.begin();
+       it != caller_ops.end();
+       ++it) {
+    //    out << "caller op " << it->first << " -> " << *it->second << std::endl;
+    if (debug_pg && debug_pg->is_active() && debug_pg->is_primary() &&
+	it->second->version.version < debug_pg->last_update_ondisk.version) {
+      if (it->second->version.epoch > debug_pg->last_update_ondisk.epoch) {
+	out << "inconsistent callerops: caller_op=" << *it->second
+	    << " luod=" << debug_pg->last_update_ondisk << std::endl;
+	debug_pg->should_crash = true;
+      }
+    }
   }
   return out;
 }
@@ -3571,6 +3653,8 @@ void PG::Missing::got(const std::map<hobject_t, Missing::item>::iterator &m)
 
 ostream& operator<<(ostream& out, const PG& pg)
 {
+  if (pg.should_crash)
+    assert(0);
   out << "pg[" << pg.info
       << " " << pg.up;
   if (pg.acting != pg.up)
@@ -3633,8 +3717,8 @@ ostream& operator<<(ostream& out, const PG& pg)
     out << " DELETING";
   out << "]";
 
-
-  return out;
+  out << " log audit: ";
+  return pg.log.audit(out);
 }
 
 std::ostream& operator<<(std::ostream& oss,
