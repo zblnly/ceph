@@ -5030,6 +5030,7 @@ void OSD::do_recovery(PG *pg)
       }
     }
     else if (started < max) {
+      dout(10) << "do_recovery started < max, removing from recovery wq" << dendl;
       recovery_wq.lock();
       pg->recovery_item.remove_myself();
       recovery_wq.unlock();
@@ -5076,9 +5077,11 @@ void OSD::finish_recovery_op(PG *pg, const hobject_t& soid, bool dequeue)
   recovery_oids[pg->info.pgid].erase(soid);
 #endif
 
-  if (dequeue)
+  if (dequeue) {
+    dout(20) << "removing pg " << *pg << " from recovery wq" << dendl;
     pg->recovery_item.remove_myself();
-  else {
+  } else {
+    dout(20) << "requeuing pg " << *pg << " for recovery" << dendl;
     pg->get();
     recovery_queue.push_front(&pg->recovery_item);  // requeue
   }
