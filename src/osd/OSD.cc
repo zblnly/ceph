@@ -2254,7 +2254,7 @@ void OSD::handle_command(MMonCommand *m)
 
   // special case shutdown, since shutdown() stops the command_tp
   if (m->cmd[0] == "stop") {
-    shutdown();
+    assert(0);
     m->put();
     return;
   }
