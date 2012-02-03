@@ -703,6 +703,7 @@ int SimpleMessenger::Pipe::accept()
   int reply_tag = 0;
   uint64_t existing_seq = -1;
   bool shutdown = false;
+  bool got_bad_auth_already = false;
 
   while (1) {
     rc = tcp_read(msgr->cct, sd, (char*)&connect, sizeof(connect), msgr->timeout);
@@ -762,7 +763,11 @@ int SimpleMessenger::Pipe::accept()
 	!authorizer_valid) {
       ldout(msgr->cct,0) << "accept bad authorizer" << dendl;
       reply.tag = CEPH_MSGR_TAG_BADAUTHORIZER;
-      goto reply_shutdown;
+      if (got_bad_auth_already) {
+        goto reply_shutdown;
+      } else
+        got_bad_auth_already = true;
+      goto reply;
     }
     msgr->lock.Lock();
     
