@@ -702,6 +702,8 @@ int SimpleMessenger::Pipe::accept()
   //  http://ceph.newdream.net/wiki/Messaging_protocol
   int reply_tag = 0;
   uint64_t existing_seq = -1;
+  bool shutdown = false;
+
   while (1) {
     rc = tcp_read(msgr->cct, sd, (char*)&connect, sizeof(connect), msgr->timeout);
     if (rc < 0) {
@@ -743,7 +745,7 @@ int SimpleMessenger::Pipe::accept()
     if (connect.protocol_version != reply.protocol_version) {
       reply.tag = CEPH_MSGR_TAG_BADPROTOVER;
       msgr->lock.Unlock();
-      goto reply;
+      goto reply_shutdown;
     }
 
     feat_missing = policy.features_required & ~(uint64_t)connect.features;
@@ -751,7 +753,7 @@ int SimpleMessenger::Pipe::accept()
       ldout(msgr->cct,1) << "peer missing required features " << std::hex << feat_missing << std::dec << dendl;
       reply.tag = CEPH_MSGR_TAG_FEATURES;
       msgr->lock.Unlock();
-      goto reply;
+      goto reply_shutdown;
     }
     
     msgr->lock.Unlock();
@@ -760,7 +762,7 @@ int SimpleMessenger::Pipe::accept()
 	!authorizer_valid) {
       ldout(msgr->cct,0) << "accept bad authorizer" << dendl;
       reply.tag = CEPH_MSGR_TAG_BADAUTHORIZER;
-      goto reply;
+      goto reply_shutdown;
     }
     msgr->lock.Lock();
     
@@ -844,7 +846,7 @@ int SimpleMessenger::Pipe::accept()
 	  reply.tag = CEPH_MSGR_TAG_WAIT;
 	  existing->pipe_lock.Unlock();
 	  msgr->lock.Unlock();
-	  goto reply;
+	  goto reply_shutdown;
 	}
       }
 
@@ -879,6 +881,8 @@ int SimpleMessenger::Pipe::accept()
     }
     assert(0);    
 
+  reply_shutdown:
+    shutdown = true;
   reply:
     reply.features = ((uint64_t)connect.features & policy.features_supported) | policy.features_required;
     reply.authorizer_len = authorizer_reply.length();
@@ -889,6 +893,9 @@ int SimpleMessenger::Pipe::accept()
       rc = tcp_write(msgr->cct, sd, authorizer_reply.c_str(), authorizer_reply.length());
       if (rc < 0)
 	goto fail_unlocked;
+    }
+    if (shutdown) {
+      goto fail_unlocked;
     }
   }
   
