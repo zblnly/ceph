@@ -572,7 +572,8 @@ void EMetaBlob::replay(MDS *mds, LogSegment *logseg)
 	} else {
 	  dout(10) << "EMetaBlob.replay for [" << p->dnfirst << "," << p->dnlast << "] had " << *in << dendl;
 	}
-   	in->first = p->dnfirst;
+	assert(in->first == p->dnfirst ||
+	       (in->is_multiversion() && in->first > p->dnfirst));
       }
     }
 
