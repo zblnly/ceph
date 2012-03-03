@@ -70,6 +70,7 @@ public:
     struct default_file_layout *dir_layout;
     typedef map<snapid_t, old_inode_t> old_inodes_t;
     old_inodes_t old_inodes;
+    snapid_t ifirst;
 
     bufferlist _enc;
 
@@ -79,10 +80,8 @@ public:
     fullbit(const string& d, snapid_t df, snapid_t dl, 
 	    version_t v, inode_t& i, fragtree_t &dft, 
 	    map<string,bufferptr> &xa, const string& sym,
-	    bufferlist &sbl, bool dr, default_file_layout *defl = NULL,
-	    old_inodes_t *oi = NULL) :
-      //dn(d), dnfirst(df), dnlast(dl), dnv(v), 
-      //inode(i), dirfragtree(dft), xattrs(xa), symlink(sym), snapbl(sbl), dirty(dr) 
+	    bufferlist &sbl, bool dr, default_file_layout *defl,
+	    snapid_t ifirst, old_inodes_t *oi) :
       dir_layout(NULL), _enc(1024)
     {
       ::encode(d, _enc);
@@ -104,6 +103,7 @@ public:
       ::encode(oi ? true : false, _enc);
       if (oi)
 	::encode(*oi, _enc);
+      ::encode(ifirst, _enc);
     }
     fullbit(bufferlist::iterator &p) : dir_layout(NULL) {
       decode(p);
@@ -114,7 +114,7 @@ public:
     }
 
     void encode(bufferlist& bl) const {
-      __u8 struct_v = 3;
+      __u8 struct_v = 4;
       ::encode(struct_v, bl);
       assert(_enc.length());
       bl.append(_enc); 
@@ -150,6 +150,10 @@ public:
 	  ::decode(old_inodes, bl);
 	}
       }
+      if (struct_v >= 4)
+	::decode(ifirst, bl);
+      else
+	ifirst = 0;
     }
 
     void update_inode(MDS *mds, CInode *in);
@@ -578,7 +582,7 @@ private:
 									 *in->get_projected_xattrs(),
 									 in->symlink, snapbl,
 									 dirty, default_layout,
-									 &in->old_inodes)));
+									 in->first, &in->old_inodes)));
     if (pi)
       lump.get_dfull().back()->inode = *pi;
     return &lump.get_dfull().back()->inode;
@@ -630,7 +634,7 @@ private:
 		       0,
 		       *pi, *pdft, *px,
 		       in->symlink, snapbl,
-		       dirty, default_layout, &in->old_inodes);
+		       dirty, default_layout, in->first, &in->old_inodes);
     return &root->inode;
   }
   
