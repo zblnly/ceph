@@ -137,6 +137,8 @@ public:
    * @{
    */
   virtual bool ms_dispatch(Message *m);
+  virtual bool ms_handle_reset(Connection *c);
+  virtual void ms_handle_remote_reset(Connection *c);
   /**
    * @} Dispatcher
    */
