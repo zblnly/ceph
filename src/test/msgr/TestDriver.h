@@ -14,6 +14,7 @@
 
 #include "msg/Messenger.h"
 #include "common/Mutex.h"
+#include "common/code_environment.h"
 
 class MessengerDriver;
 typedef std::tr1::shared_ptr<MessengerDriver> MDriver;
@@ -37,6 +38,10 @@ public:
   virtual ~TestDriver(){};
 protected:
   set<MDriver> msgr_drivers;
+  int nonce;
+  CephContext *cct;
+  Mutex lock;
+  map<entity_addr_t, MDriver> driver_addresses;
 
   /**
    * @defgroup Orders
