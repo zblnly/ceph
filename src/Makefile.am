@@ -270,6 +270,13 @@ testtimers_SOURCES = test/TestTimers.cc
 testtimers_LDADD = $(LIBGLOBAL_LDA)
 bin_DEBUGPROGRAMS += testtimers
 
+test_msgrawesome_SOURCES = test/TestMsgr.cc \
+						test/msgr/MessengerDriver.cc \
+						test/msgr/TestDriver.cc \
+						common/StateTracker.cc
+test_msgrawesome_LDADD = $(LIBGLOBAL_LDA)
+bin_DEBUGPROGRAMS += test_msgrawesome
+
 testdout_streambuf_SOURCES = test/TestDoutStreambuf.cc
 testdout_streambuf_LDADD = $(LIBGLOBAL_LDA)
 bin_DEBUGPROGRAMS += testdout_streambuf
