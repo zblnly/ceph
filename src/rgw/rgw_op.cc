@@ -8,6 +8,8 @@
 #include "common/armor.h"
 #include "common/mime.h"
 #include "common/utf8.h"
+#include "common/Cond.h"
+#include "common/Thread.h"
 
 #include "rgw_rados.h"
 #include "rgw_op.h"
@@ -759,7 +761,7 @@ public:
   RGWPutObjProcessor_Atomic() {}
   int handle_data(bufferlist& bl, off_t ofs, void **phandle) {
     if (!ofs) {
-      first_chunk.claim(bl);
+      first_chunk = bl;
       *phandle = NULL;
       return 0;
     }
@@ -890,6 +892,60 @@ void RGWPutObj::dispose_processor(RGWPutObjProcessor *processor)
   delete processor;
 }
 
+class HashThread : public Thread {
+public:
+  list<bufferlist> chunks;
+  MD5 *hash;
+  bool done;
+  Mutex lock;
+  Cond cond;
+  unsigned char *digest;
+
+  HashThread(MD5 *_hash, unsigned char *_digest) :
+          hash(_hash), done(false), lock("HashThread"), digest(_digest) {}
+
+  void add(bufferlist& bl) {
+    Mutex::Locker l(lock);
+    chunks.push_back(bl);
+  }
+
+  void complete() {
+    lock.Lock();
+    done = true;
+    cond.Signal();
+    lock.Unlock();
+    join();
+  }
+
+  void *entry() {
+    lock.Lock();
+
+    while (!done || chunks.size()) {
+      list<bufferlist>::iterator iter, old_iter = chunks.end();
+      for (iter = chunks.begin(); iter != chunks.end(); ++iter) {
+        if (old_iter != chunks.end())
+          chunks.erase(old_iter);
+        bufferlist& bl = *iter;
+        lock.Unlock();
+        hash->Update((const byte *)bl.c_str(), bl.length());
+        lock.Lock();
+        old_iter = iter;
+      }
+
+      if (old_iter != chunks.end())
+        chunks.erase(old_iter);
+      if (!done)
+        cond.Wait(lock);
+    }
+
+    lock.Unlock();
+
+    hash->Final(digest);
+    return 0;
+  }
+};
+
+
 void RGWPutObj::execute()
 {
   RGWPutObjProcessor *processor = NULL;
@@ -898,6 +954,7 @@ void RGWPutObj::execute()
   char calc_md5[CEPH_CRYPTO_MD5_DIGESTSIZE * 2 + 1];
   unsigned char m[CEPH_CRYPTO_MD5_DIGESTSIZE];
   MD5 hash;
+  HashThread hash_thr(&hash, m);
   bufferlist bl, aclbl;
   map<string, bufferlist> attrs;
   int len;
@@ -937,6 +994,8 @@ void RGWPutObj::execute()
   if (ret < 0)
     goto done;
 
+  hash_thr.create();
+
   do {
     bufferlist data;
     len = get_data(data);
@@ -954,7 +1013,7 @@ void RGWPutObj::execute()
     if (ret < 0)
       goto done;
 
-    hash.Update(data_ptr, len);
+    hash_thr.add(data);
 
     ret = processor->throttle_data(handle);
     if (ret < 0)
@@ -970,7 +1029,7 @@ void RGWPutObj::execute()
   s->obj_size = ofs;
   perfcounter->inc(l_rgw_put_b, s->obj_size);
 
-  hash.Final(m);
+  hash_thr.complete();
 
   buf_to_hex(m, CEPH_CRYPTO_MD5_DIGESTSIZE, calc_md5);
 
@@ -1000,6 +1059,8 @@ void RGWPutObj::execute()
 
   ret = processor->complete(etag, attrs);
 done:
+  if (hash_thr.is_started())
+    hash_thr.complete();
   dispose_processor(processor);
   perfcounter->finc(l_rgw_put_lat,
                    (ceph_clock_now(s->cct) - s->time));
