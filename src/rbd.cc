@@ -165,9 +165,14 @@ static int do_list(librbd::RBD &rbd, librados::IoCtx& io_ctx)
 }
 
 static int do_create(librbd::RBD &rbd, librados::IoCtx& io_ctx,
-		     const char *imgname, uint64_t size, int *order)
+		     const char *imgname, uint64_t size, int *order, uint64_t *bid)
 {
-  int r = rbd.create(io_ctx, imgname, size, order);
+  int r;
+  if (!bid) {
+    r = rbd.create(io_ctx, imgname, size, order);
+  } else {
+    r = rbd.create(io_ctx, imgname, size, order, *bid);
+  }
   if (r < 0)
     return r;
   return 0;
@@ -401,7 +406,7 @@ done_img:
 }
 
 static int do_import(librbd::RBD &rbd, librados::IoCtx& io_ctx,
-		     const char *imgname, int *order, const char *path)
+		     const char *imgname, int *order, const char *path, uint64_t *bid)
 {
   int fd = open(path, O_RDONLY);
   int r;
@@ -430,7 +435,7 @@ static int do_import(librbd::RBD &rbd, librados::IoCtx& io_ctx,
   md_oid = imgname;
   md_oid += RBD_SUFFIX;
 
-  r = do_create(rbd, io_ctx, imgname, size, order);
+  r = do_create(rbd, io_ctx, imgname, size, order, bid);
   if (r < 0) {
     cerr << "image creation failed" << std::endl;
     return r;
@@ -924,6 +929,8 @@ int main(int argc, const char **argv)
   uint64_t size = 0;  // in bytes
   int order = 0;
   const char *imgname = NULL, *snapname = NULL, *destname = NULL, *dest_poolname = NULL, *path = NULL, *secretfile = NULL, *user = NULL, *devpath = NULL;
+  uint64_t bid = 0;
+  uint64_t *pbid = NULL;
 
   std::string val;
   std::ostringstream err;
@@ -962,6 +969,12 @@ int main(int argc, const char **argv)
       secretfile = strdup(val.c_str());
     } else if (ceph_argparse_witharg(args, i, &val, "--user", (char*)NULL)) {
       user = strdup(val.c_str());
+    } else if (ceph_argparse_withlonglong(args, i, (long long *)&bid, &err, "--bid", (char*)NULL)) {
+      if (!err.str().empty()) {
+        cerr << err.str() << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      pbid = &bid;
     } else {
       ++i;
     }
@@ -1159,7 +1172,7 @@ int main(int argc, const char **argv)
       usage();
       exit(1);
     }
-    r = do_create(rbd, io_ctx, imgname, size, &order);
+    r = do_create(rbd, io_ctx, imgname, size, &order, pbid);
     if (r < 0) {
       cerr << "create error: " << cpp_strerror(-r) << std::endl;
       exit(1);
@@ -1281,7 +1294,7 @@ int main(int argc, const char **argv)
       cerr << "pathname should be specified" << std::endl;
       exit(1);
     }
-    r = do_import(rbd, dest_io_ctx, destname, &order, path);
+    r = do_import(rbd, dest_io_ctx, destname, &order, path, pbid);
     if (r < 0) {
       cerr << "import failed: " << cpp_strerror(-r) << std::endl;
       exit(1);

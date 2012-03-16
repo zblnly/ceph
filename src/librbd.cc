@@ -793,6 +793,45 @@ int create(IoCtx& io_ctx, const char *imgname, uint64_t size, int *order)
   return 0;
 }
 
+int create(IoCtx& io_ctx, const char *imgname, uint64_t size, int *order, uint64_t bid)
+{
+  CephContext *cct = (CephContext *)io_ctx.cct();
+  ldout(cct, 20) << "create " << &io_ctx << " name = " << imgname << " size = " << size << dendl;
+
+  string md_oid = imgname;
+  md_oid += RBD_SUFFIX;
+
+  // make sure it doesn't already exist
+  int r = io_ctx.stat(md_oid, NULL, NULL);
+  if (r == 0) {
+    lderr(cct) << "rbd image header " << md_oid << " already exists" << dendl;
+    return -EEXIST;
+  }
+
+  struct rbd_obj_header_ondisk header;
+  init_rbd_header(header, size, order, bid);
+
+  bufferlist bl;
+  bl.append((const char *)&header, sizeof(header));
+
+  ldout(cct, 2) << "adding rbd image to directory..." << dendl;
+  r = tmap_set(io_ctx, imgname);
+  if (r < 0) {
+    lderr(cct) << "error adding img to directory: " << cpp_strerror(-r)<< dendl;
+    return r;
+  }
+
+  ldout(cct, 2) << "creating rbd image..." << dendl;
+  r = io_ctx.write(md_oid, bl, bl.length(), 0);
+  if (r < 0) {
+    lderr(cct) << "error writing header: " << cpp_strerror(-r) << dendl;
+    return r;
+  }
+
+  ldout(cct, 2) << "done." << dendl;
+  return 0;
+}
+
 int rename(IoCtx& io_ctx, const char *srcname, const char *dstname)
 {
   CephContext *cct = (CephContext *)io_ctx.cct();
@@ -1722,6 +1761,12 @@ int RBD::open(IoCtx& io_ctx, Image& image, const char *name, const char *snapnam
 int RBD::create(IoCtx& io_ctx, const char *name, uint64_t size, int *order)
 {
   int r = librbd::create(io_ctx, name, size, order);
+  return r;
+}
+
+int RBD::create(IoCtx& io_ctx, const char *name, uint64_t size, int *order, uint64_t bid)
+{
+  int r = librbd::create(io_ctx, name, size, order, bid);
   return r;
 }
 

@@ -68,6 +68,7 @@ public:
   int open(IoCtx& io_ctx, Image& image, const char *name, const char *snapname);
   int list(IoCtx& io_ctx, std::vector<std::string>& names);
   int create(IoCtx& io_ctx, const char *name, uint64_t size, int *order);
+  int create(IoCtx& io_ctx, const char *name, uint64_t size, int *order, uint64_t bid);
   int remove(IoCtx& io_ctx, const char *name);
   int remove_with_progress(IoCtx& io_ctx, const char *name, ProgressContext& pctx);
   int rename(IoCtx& src_io_ctx, const char *srcname, const char *destname);
