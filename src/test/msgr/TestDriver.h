@@ -45,6 +45,7 @@ protected:
   CephContext *cct;
   Mutex lock;
   map<entity_addr_t, MDriver> driver_addresses;
+  StateTracker mdriver_tracker;
 
   /**
    * @defgroup Orders

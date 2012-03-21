@@ -19,12 +19,16 @@ int TestDriver::run_tests()
   entity_inst_t entity(name, empty_addr);
   MDriver msgr1 = create_messenger(entity);
   MDriver msgr2 = create_messenger(entity);
+
+  msgr1->establish_connection(msgr2->get_inst());
   return 0;
 }
 // constructors
 TestDriver::TestDriver() : nonce(0), lock("TestDriver::lock")
 {
   cct = new CephContext(CODE_ENVIRONMENT_UTILITY);
+  mdriver_tracker = StateTrackerImpl::create_state_tracker(MESSENGER_DRIVER);
+  MessengerDriver::build_states(mdriver_tracker);
 }
 
 // protected functions
@@ -34,7 +38,7 @@ MDriver TestDriver::create_messenger(entity_inst_t& address)
   SimpleMessenger *msgr = new SimpleMessenger(cct, address.name, nonce++);
   msgr->set_default_policy(Messenger::Policy::lossless_peer(0, 0));
   msgr->bind(address.addr);
-  MDriver driver(new MessengerDriver(this, msgr));
+  MDriver driver(new MessengerDriver(this, msgr, mdriver_tracker));
   driver->init();
 
   msgr_drivers.insert(driver);

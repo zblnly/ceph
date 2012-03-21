@@ -12,8 +12,13 @@
 
 #include "msg/Messenger.h"
 #include "TestDriver.h"
+#include "common/StateTracker.h"
 
 #include <boost/scoped_ptr.hpp>
+#include <list>
+#include <map>
+
+#define MESSENGER_DRIVER "MessengerDriver"
 
 /**
  * The MessengerDriver is a fairly simple object which takes responsibility
@@ -32,6 +37,8 @@ class MessengerDriver : public Dispatcher {
    */
   boost::scoped_ptr<Messenger> messenger;
 
+  /// StateTracker for my class
+  const StateTracker statetracker;
 public:
   CephContext *cct;
   /**
@@ -44,8 +51,10 @@ public:
    * be set, but the MessengerDriver will perform all of generic Messenger
    * startup and takes over the reference to it.
    */
-  MessengerDriver(TestDriver *testdriver, Messenger *msgr) :
-    Dispatcher(msgr->cct), driver(testdriver), messenger(msgr), state(BUILT) {}
+  MessengerDriver(TestDriver *testdriver, Messenger *msgr,
+                  StateTracker tracker) :
+    Dispatcher(msgr->cct), driver(testdriver), messenger(msgr),
+    statetracker(tracker), state(BUILT) {}
 
   virtual ~MessengerDriver() { assert(state == STOPPED || state == FAILED); }
 
@@ -66,6 +75,26 @@ public:
    * @return -1 if this is currently invalid, -errno on a failure, 0 otherwise.
    */
   int stop();
+
+  /**
+   * @defgroup State flags
+   * @{
+   */
+  enum STATE_POINTS {
+    message_received = 0,
+    num_states
+  };
+
+  static void build_states(StateTracker tracker) {
+    assert(!tracker->get_system_name().compare(MESSENGER_DRIVER));
+    static const char *state_names[] =
+    {
+     "message_received"
+    };
+    for (int i = 0; i < num_states; ++i) {
+      tracker->create_new_state_with_id(state_names[i], i, -1);
+    }
+  }
 
   /**
    * @defgroup Accessors
