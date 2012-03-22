@@ -20,26 +20,19 @@
 #include "common/StateTracker.h"
 
 class MessengerDriver;
+class TestDriver;
 typedef std::tr1::shared_ptr<MessengerDriver> MDriver;
 
 /**
  * The TestDriver defines the interface for communicating with the
  * MessengerDriver, and implements the interface for MessengerDrivers to report
- * important events back. It's expected that actual tests will consist of
- * subclasses which override the default run_test() function.
+ * important events back.
  */
 class TestDriver {
 public:
-  /**
-   * Run this TestDriver's sequence of tests.
-   *
-   * @return 0 on success, -1 if the tests don't pass.
-   */
-  virtual int run_tests();
-
   TestDriver();
-  virtual ~TestDriver(){};
-protected:
+  ~TestDriver(){};
+private:
   set<MDriver> msgr_drivers;
   int nonce;
   CephContext *cct;
@@ -51,6 +44,7 @@ protected:
    * @defgroup Orders
    * @{
    */
+public:
   /**
    * Create a new Messenger (and MessengerDriver for it), bound to the
    * given address. Do initialization, and return the MessengerDriver.
@@ -58,7 +52,7 @@ protected:
    * @param entity The entity type and address (optional) for the Messenger.
    * @return An MDriver reference to the newly-created Messenger[Driver].
    */
-  virtual MDriver create_messenger(entity_inst_t& address);
+  MDriver create_messenger(entity_inst_t& address);
   /**
    * Shut down the Messenger associated with this MessengerDriver. This
    * does not free all the resources allocated to either one,
@@ -77,7 +71,7 @@ protected:
    * @param dest The address to connect to.
    * @return -1 if this is invalid at this time (uninitialized), 0 otherwise.
    */
-  virtual int connect_messengers(MDriver origin, entity_inst_t& dest);
+  int connect_messengers(MDriver origin, entity_inst_t& dest);
   /**
    * @} Orders
    */

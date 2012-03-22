@@ -11,52 +11,7 @@
 #include "TestDriver.h"
 #include "MessengerDriver.h"
 #include "msg/SimpleMessenger.h"
-#include "messages/MOSDOp.h"
 
-int TestDriver::run_tests()
-{
-  entity_name_t name = entity_name_t::OSD();
-  entity_addr_t empty_addr;
-  entity_inst_t entity(name, empty_addr);
-  MDriver msgr1 = create_messenger(entity);
-  MDriver msgr2 = create_messenger(entity);
-  entity_inst_t msgr2_ent = msgr2->get_inst();
-
-  // register a watch for new messages on msgr2
-  Mutex lock("TestDriver::run_tests::lock");
-  const StateTrackerImpl::State *received_state =
-      mdriver_tracker->retrieve_state(MessengerDriver::message_received);
-  StateAlert message_alert(new StateAlertImpl(received_state, lock));
-  msgr2->register_alert(message_alert);
-
-  // send msgr2 a message
-  MOSDOp *m = new MOSDOp();
-  bufferlist bl;
-  ::encode("test message 1", bl);
-  m->writefull(bl);
-  connect_messengers(msgr1, msgr2_ent);
-  msgr1->send_message(m, msgr2->get_inst());
-
-  lock.Lock();
-  while (!message_alert->is_state_reached()) {
-    message_alert->cond.Wait(lock);
-  }
-  lock.Unlock();
-
-  std::cerr << "received message " << *((MOSDOp*) message_alert->get_payload())
-            << "\nafter sending\n" << *m << std::endl;
-
-  // check that they match
-  bool match = message_contents_equal(m, (Message*)message_alert->get_payload());
-
-  shutdown_messenger(msgr1);
-  shutdown_messenger(msgr2);
-  if (!match)
-    return 1;
-  std::cerr << "Success!" << "sizes are " << m->get_payload().length()
-      << m->get_data().length() << m->get_middle().length() << std::endl;
-  return 0;
-}
 // constructors
 TestDriver::TestDriver() : nonce(0), lock("TestDriver::lock")
 {
