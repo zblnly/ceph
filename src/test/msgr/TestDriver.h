@@ -81,6 +81,17 @@ protected:
   /**
    * @} Orders
    */
+
+  /**
+   * Check whether two messages have equal contents.
+   *
+   * @return True if all the encoded bits match, false otherwise.
+   */
+  bool message_contents_equal(Message *m1, Message *m2) {
+    return m1->get_payload().contents_equal(m2->get_payload()) &&
+        m1->get_data().contents_equal(m2->get_data()) &&
+        m1->get_middle().contents_equal(m2->get_middle());
+  }
 };
 
 /**

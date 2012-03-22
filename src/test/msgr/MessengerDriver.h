@@ -54,9 +54,17 @@ public:
   MessengerDriver(TestDriver *testdriver, Messenger *msgr,
                   StateTracker tracker) :
     Dispatcher(msgr->cct), driver(testdriver), messenger(msgr),
-    statetracker(tracker), state(BUILT) {}
+    statetracker(tracker), state(BUILT) {
+    my_alerts.resize(num_states);
+  }
 
-  virtual ~MessengerDriver() { assert(state == STOPPED || state == FAILED); }
+  virtual ~MessengerDriver() {
+    assert(state == STOPPED || state == FAILED);
+    for (list<Message*>::iterator i = received_messages.begin();
+        i != received_messages.end();
+        ++i)
+      (*i)->put();
+  }
 
   /**
    * Initialize the MessengerDriver and its components. Call this function
@@ -157,6 +165,14 @@ public:
    * command is invalid (Messenger is shut down or uninitialized), 0 otherwise.
    */
   virtual int break_connection(const entity_inst_t& other);
+
+  /**
+   * Register a new alert that this MessengerDriver should report when
+   * reaching the given state.
+   *
+   * @param alert The StateAlert to register.
+   */
+  virtual void register_alert(StateAlert alert);
   /**
    * @} Orders
    */
@@ -175,6 +191,9 @@ public:
 protected:
   enum STATE { BUILT, RUNNING, STOPPED, FAILED };
   STATE state;
+
+  list<Message *> received_messages;
+  vector<list<StateAlert> > my_alerts;
 };
 
 #endif /* MESSENGERDRIVER_H_ */

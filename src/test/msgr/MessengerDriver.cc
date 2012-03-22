@@ -75,9 +75,22 @@ int MessengerDriver::break_connection(const entity_inst_t& dest)
   return 0;
 }
 
+void MessengerDriver::register_alert(StateAlert alert)
+{
+  // right now we can't handle Messenger states
+  assert(statetracker->is_my_state(alert->get_watched_state()));
+
+  my_alerts[alert->get_watched_state()->state_id].push_back(alert);
+}
+
 bool MessengerDriver::ms_dispatch(Message *m)
 {
-  m->put();
+  received_messages.push_back(m);
+  list<StateAlert>::iterator i = my_alerts[message_received].begin();
+  while (i != my_alerts[message_received].end()) {
+    (*i)->set_state_reached(m->get());
+    my_alerts[message_received].erase(i++);
+  }
   return true;
 }
 
