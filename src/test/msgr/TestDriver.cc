@@ -58,3 +58,24 @@ int TestDriver::connect_messengers(MDriver origin, MDriver dest)
 
   return 0;
 }
+
+const State *TestDriver::lookup_state(const char *system_name, const char *state_name)
+{
+  if (!mdriver_tracker->get_system_name().compare(system_name)) {
+    // it's the MDriver system
+    int id = mdriver_tracker->retrieve_state_id(state_name);
+    return mdriver_tracker->retrieve_state(id);
+  }
+  // it's not a StateTracker we have right now
+  return NULL;
+}
+
+const State *TestDriver::lookup_state(const char *system_name, int state_id)
+{
+  if (!mdriver_tracker->get_system_name().compare(system_name)) {
+    // it's the MDriver system
+    return mdriver_tracker->retrieve_state(state_id);
+  }
+  // it's not a StateTracker we have right now
+  return NULL;
+}

@@ -77,6 +77,28 @@ public:
    */
 
   /**
+   * @defgroup Accessors and Helpers
+   * @{
+   */
+  /**
+   * Get a State reference for the given state name.
+   *
+   * @param system_name The name of the StateTracker system.
+   * @param state_name The name of the state.
+   * @return The State, as a const pointer. Or null if either the system
+   * or state does not exist.
+   */
+  const State *lookup_state(const char *system_name, const char *state_name);
+  /**
+   * Get a State reference for the given state ID.
+   *
+   * @param system_name The name of the StateTracker system.
+   * @param state_id The id of the state.
+   * @return The State, as a const pointer. Or null if either the system
+   * or state does not exist.
+   */
+  const State *lookup_state(const char *system_name, int state_id);
+  /**
    * Check whether two messages have equal contents.
    *
    * @return True if all the encoded bits match, false otherwise.
@@ -86,6 +108,9 @@ public:
         m1->get_data().contents_equal(m2->get_data()) &&
         m1->get_middle().contents_equal(m2->get_middle());
   }
+  /**
+   * @} //Acessors and Helpers
+   */
 };
 
 /**
