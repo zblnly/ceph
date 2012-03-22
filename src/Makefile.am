@@ -643,6 +643,14 @@ unittest_daemon_config_LDADD =  ${UNITTEST_LDADD} ${LIBGLOBAL_LDA}
 unittest_daemon_config_CXXFLAGS = ${CRYPTO_CFLAGS} ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS}
 check_PROGRAMS += unittest_daemon_config
 
+unittest_msgr_SOURCES = test/msgr/gtest_msgr.cc \
+						test/msgr/MessengerDriver.cc \
+						test/msgr/TestDriver.cc \
+						common/StateTracker.cc
+unittest_msgr_LDADD = ${UNITTEST_LDADD} ${LIBGLOBAL_LDA}
+unittest_msgr_CXXFLAGS = ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS}
+check_PROGRAMS += unittest_msgr
+
 if WITH_RADOSGW
 unittest_librgw_SOURCES = test/librgw.cc
 unittest_librgw_LDFLAGS = -lrt $(PTHREAD_CFLAGS) -lcurl ${AM_LDFLAGS}

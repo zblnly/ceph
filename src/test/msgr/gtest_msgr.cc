@@ -6,16 +6,17 @@
  * License version 2.1, as published by the Free Software 
  * Foundation.  See file COPYING.
  * 
- * Do a really stupid test of the messenger system with the
- * TestDriver interface.
  */
 
-#include "msgr/TestDriver.h"
-#include "msgr/MessengerDriver.h"
-#include "msgr/msgr_test_functions.h"
+#include "test/msgr/TestDriver.h"
+#include "test/msgr/MessengerDriver.h"
+#include "test/msgr/msgr_test_functions.h"
 
-int main (int argc, const char **argv)
+#include "gtest/gtest.h"
+
+TEST(msgr, sample)
 {
   TestDriver driver;
-  return sample_test(&driver);
+  int sample_test_result = sample_test(&driver);
+  ASSERT_EQ(sample_test_result, 0);
 }
