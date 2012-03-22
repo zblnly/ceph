@@ -47,13 +47,11 @@ int TestDriver::shutdown_messenger(MDriver msgrdriver)
   return ret;
 }
 
-int TestDriver::connect_messengers(MDriver origin, entity_inst_t& dest)
+int TestDriver::connect_messengers(MDriver origin, MDriver dest)
 {
   Mutex::Locker locker(lock);
-  map<entity_addr_t, MDriver>::iterator iter = driver_addresses.find(dest.addr);
-  assert(iter != driver_addresses.end());
 
-  int ret = origin->establish_connection(dest);
+  int ret = origin->establish_connection(dest->get_inst());
   if (ret) {
     return ret;
   }

@@ -22,7 +22,6 @@ int sample_test(TestDriver *driver)
   entity_inst_t entity(name, empty_addr);
   MDriver msgr1 = driver->create_messenger(entity);
   MDriver msgr2 = driver->create_messenger(entity);
-  entity_inst_t msgr2_ent = msgr2->get_inst();
 
   // register a watch for new messages on msgr2
   Mutex lock("TestDriver::run_tests::lock");
@@ -36,7 +35,7 @@ int sample_test(TestDriver *driver)
   bufferlist bl;
   ::encode("test message 1", bl);
   m->writefull(bl);
-  driver->connect_messengers(msgr1, msgr2_ent);
+  driver->connect_messengers(msgr1, msgr2);
   msgr1->send_message(m, msgr2->get_inst());
 
   lock.Lock();

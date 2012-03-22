@@ -68,10 +68,10 @@ public:
    * LATER: report back if already connected, instead of silent success.
    *
    * @param origin The MessengerDriver which should initiate the connection.
-   * @param dest The address to connect to.
+   * @param dest The MessengerDriver whose Messenger should be connected to.
    * @return -1 if this is invalid at this time (uninitialized), 0 otherwise.
    */
-  int connect_messengers(MDriver origin, entity_inst_t& dest);
+  int connect_messengers(MDriver origin, MDriver dest);
   /**
    * @} Orders
    */
