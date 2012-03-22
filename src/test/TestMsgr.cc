@@ -26,7 +26,7 @@ int sample_test(TestDriver *driver)
 
   // register a watch for new messages on msgr2
   Mutex lock("TestDriver::run_tests::lock");
-  const StateTrackerImpl::State *received_state =
+  const State *received_state =
       mdriver_tracker->retrieve_state(MessengerDriver::message_received);
   StateAlert message_alert(new StateAlertImpl(received_state, lock));
   msgr2->register_alert(message_alert);

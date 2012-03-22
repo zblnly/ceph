@@ -72,7 +72,7 @@ int StateTrackerImpl::create_new_state_with_id(const char *state_name, int id,
   return id;
 }
 
-const StateTrackerImpl::State *StateTrackerImpl::retrieve_state (int id) const
+const State *StateTrackerImpl::retrieve_state (int id) const
 {
   Mutex::Locker locker(lock);
   if (id >= state_id_alloc) {

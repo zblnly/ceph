@@ -104,19 +104,19 @@ public:
  * for permission from the TestDriver to continue running?
  */
 class StateAlertImpl {
-  const StateTrackerImpl::State *state;
+  const State *state;
   bool state_reached;
   void *payload;
   Mutex& lock;
 public:
   Cond cond;
 
-  StateAlertImpl(const StateTrackerImpl::State *s, Mutex &_lock) : state(s),
+  StateAlertImpl(const State *s, Mutex &_lock) : state(s),
       state_reached(0), lock(_lock)
   {}
   ~StateAlertImpl() {}
 
-  const StateTrackerImpl::State *get_watched_state() { return state; }
+  const State *get_watched_state() { return state; }
   void set_state_reached(void *payload=NULL) {
     lock.Lock();
     state_reached = true;
