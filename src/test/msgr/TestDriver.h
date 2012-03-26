@@ -73,6 +73,10 @@ public:
    */
   int connect_messengers(MDriver origin, MDriver dest);
   /**
+   * Shut down all the attached Messengers and clean up state.
+   */
+  void clean_up();
+  /**
    * @} Orders
    */
 

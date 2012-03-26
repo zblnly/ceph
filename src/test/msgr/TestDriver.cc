@@ -59,6 +59,17 @@ int TestDriver::connect_messengers(MDriver origin, MDriver dest)
   return 0;
 }
 
+void TestDriver::clean_up()
+{
+  Mutex::Locker l(lock);
+  map<entity_addr_t, MDriver>::iterator iter = driver_addresses.begin();
+  while (iter != driver_addresses.end()){
+    msgr_drivers.erase(iter->second);
+    iter->second->stop();
+    driver_addresses.erase(iter++);
+  }
+}
+
 const State *TestDriver::lookup_state(const char *system_name, const char *state_name)
 {
   if (!mdriver_tracker->get_system_name().compare(system_name)) {
