@@ -90,6 +90,8 @@ public:
    */
   enum STATE_POINTS {
     message_received = 0,
+    lossy_connection_broke,
+    remote_reset_connection,
     num_states
   };
 
@@ -97,7 +99,9 @@ public:
     assert(!tracker->get_system_name().compare(MESSENGER_DRIVER));
     static const char *state_names[] =
     {
-     "message_received"
+     "message received",
+     "lossy connection broke",
+     "remote reset connection"
     };
     for (int i = 0; i < num_states; ++i) {
       tracker->create_new_state_with_id(state_names[i], i, -1);

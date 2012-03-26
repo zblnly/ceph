@@ -96,10 +96,20 @@ bool MessengerDriver::ms_dispatch(Message *m)
 
 bool MessengerDriver::ms_handle_reset(Connection *c)
 {
+  list<StateAlert>::iterator i = my_alerts[lossy_connection_broke].begin();
+  while (i != my_alerts[lossy_connection_broke].end()) {
+    (*i)->set_state_reached();
+    my_alerts[lossy_connection_broke].erase(i++);
+  }
   return true;
 }
 
 void MessengerDriver::ms_handle_remote_reset(Connection *c)
 {
+  list<StateAlert>::iterator i = my_alerts[remote_reset_connection].begin();
+  while (i != my_alerts[remote_reset_connection].end()) {
+    (*i)->set_state_reached();
+    my_alerts[remote_reset_connection].erase(i++);
+  }
   return;
 }
