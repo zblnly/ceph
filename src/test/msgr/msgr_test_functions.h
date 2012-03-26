@@ -12,28 +12,25 @@
 
 #include "messages/MOSDOp.h"
 
-int sample_test(TestDriver *driver)
+/**
+ * Send a test message from origin to dest and check it. They should
+ * be already connected.
+ */
+int send_test_message(TestDriver *driver, MDriver origin, MDriver dest)
 {
-  entity_name_t name = entity_name_t::OSD();
-  entity_addr_t empty_addr;
-  entity_inst_t entity(name, empty_addr);
-  MDriver msgr1 = driver->create_messenger(entity);
-  MDriver msgr2 = driver->create_messenger(entity);
-
-  // register a watch for new messages on msgr2
-  Mutex lock("TestDriver::run_tests::lock");
+  // register a watch for new messages on dest
+  Mutex lock("send_test_message::lock");
   const State *received_state =
       driver->lookup_state(MESSENGER_DRIVER, MessengerDriver::message_received);
   StateAlert message_alert(new StateAlertImpl(received_state, lock));
-  msgr2->register_alert(message_alert);
+  dest->register_alert(message_alert);
 
   // send msgr2 a message
   MOSDOp *m = new MOSDOp();
   bufferlist bl;
-  ::encode("test message 1", bl);
+  ::encode("send_test_message message 1", bl);
   m->writefull(bl);
-  driver->connect_messengers(msgr1, msgr2);
-  msgr1->send_message(m, msgr2->get_inst());
+  origin->send_message(m, dest->get_inst());
 
   lock.Lock();
   while (!message_alert->is_state_reached()) {
@@ -46,15 +43,27 @@ int sample_test(TestDriver *driver)
 
   // check that they match
   bool match = driver->message_contents_equal(m, (Message*)message_alert->get_payload());
+  return (match? 0 : 1);
+}
+
+int sample_test(TestDriver *driver)
+{
+  entity_name_t name = entity_name_t::OSD();
+  entity_addr_t empty_addr;
+  entity_inst_t entity(name, empty_addr);
+  MDriver msgr1 = driver->create_messenger(entity);
+  MDriver msgr2 = driver->create_messenger(entity);
+
+  driver->connect_messengers(msgr1, msgr2);
+
+  int ret = send_test_message(driver, msgr1, msgr2);
 
   driver->shutdown_messenger(msgr1);
   driver->shutdown_messenger(msgr2);
-  if (!match)
-    return 1;
-  std::cerr << "Success!" << "sizes are " << m->get_payload().length()
-                << m->get_data().length() << m->get_middle().length() << std::endl;
+  if (ret)
+    return ret;
+  std::cerr << "Success sending message!" << std::endl;
   return 0;
 }
-
 
 #endif /* MSGR_TEST_FUNCTIONS_H_ */
