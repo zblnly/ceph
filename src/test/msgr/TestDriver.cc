@@ -59,6 +59,23 @@ int TestDriver::connect_messengers(MDriver origin, MDriver dest)
   return 0;
 }
 
+StateAlert TestDriver::generate_alert(const State *state,
+                                      Mutex& lock, Cond& cond)
+{
+  StateAlert alert(new StateAlertImpl(state, lock, cond));
+  return alert;
+}
+
+StateAlert TestDriver::generate_alert(const State *state)
+{
+  Mutex *lock = new Mutex(state->state_name.c_str());
+  Cond *cond = new Cond;
+  StateAlert alert = generate_alert(state, *lock, *cond);
+  alert->cond_ptr = cond;
+  alert->lock_ptr = lock;
+  return alert;
+}
+
 void TestDriver::clean_up()
 {
   Mutex::Locker l(lock);

@@ -28,21 +28,20 @@ inline MOSDOp *generate_message(const char *message)
 int send_test_message(TestDriver *driver, MDriver origin, MDriver dest)
 {
   // register a watch for new messages on dest
-  Mutex lock("send_test_message::lock");
   const State *received_state =
       driver->lookup_state(MESSENGER_DRIVER, MessengerDriver::message_received);
-  StateAlert message_alert(new StateAlertImpl(received_state, lock));
+  StateAlert message_alert = driver->generate_alert(received_state);
   dest->register_alert(message_alert);
 
   // send msgr2 a message
   MOSDOp *m = generate_message("send_test_message message 1");
   origin->send_message(m, dest->get_inst());
 
-  lock.Lock();
+  message_alert->lock.Lock();
   while (!message_alert->is_state_reached()) {
-    message_alert->cond.Wait(lock);
+    message_alert->cond.Wait(message_alert->lock);
   }
-  lock.Unlock();
+  message_alert->lock.Unlock();
 
   std::cerr << "received message " << *((MOSDOp*) message_alert->get_payload())
                       << "\nafter sending\n" << *m << std::endl;

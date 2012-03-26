@@ -22,6 +22,8 @@
 class MessengerDriver;
 class TestDriver;
 typedef std::tr1::shared_ptr<MessengerDriver> MDriver;
+class StateAlertImpl;
+typedef std::tr1::shared_ptr<StateAlertImpl> StateAlert;
 
 /**
  * The TestDriver defines the interface for communicating with the
@@ -72,6 +74,22 @@ public:
    * @return -1 if this is invalid at this time (uninitialized), 0 otherwise.
    */
   int connect_messengers(MDriver origin, MDriver dest);
+  /**
+   * Generate a StateAlert tied to the given state, using the given
+   * Mutex and Condition variable. If you don't want to manage the Cond or Mutex,
+   * use the next variant of the function and let TestDriver do it for you.
+   *
+   * @param state The State to alert on.
+   * @param lock The lock to take while modifying.
+   * @param cond The Condition variable to alert and wait on.
+   */
+  StateAlert generate_alert(const State *state, Mutex& lock, Cond& cond);
+  /**
+   * Generate a StateAlert tied to the given state.
+   *
+   * @param state The State to alert on.
+   */
+  StateAlert generate_alert(const State *state);
   /**
    * Shut down all the attached Messengers and clean up state.
    */
@@ -136,14 +154,11 @@ class StateAlertImpl {
   const State *state;
   bool state_reached;
   void *payload;
-  Mutex& lock;
+  Mutex *lock_ptr;
+  Cond *cond_ptr;
 public:
-  Cond cond;
-
-  StateAlertImpl(const State *s, Mutex &_lock) : state(s),
-      state_reached(0), lock(_lock)
-  {}
-  ~StateAlertImpl() {}
+  Mutex& lock;
+  Cond& cond;
 
   const State *get_watched_state() { return state; }
   void set_state_reached(void *payload=NULL) {
@@ -158,7 +173,18 @@ public:
     return state_reached;
   }
   void *get_payload() { return payload; }
+
+  ~StateAlertImpl() {
+    if (lock_ptr)
+      delete lock_ptr;
+    if (cond_ptr)
+      delete cond_ptr;
+  }
+private:
+  friend class TestDriver;
+  StateAlertImpl(const State *s, Mutex &_lock, Cond& _cond) : state(s),
+      state_reached(0), lock(_lock), cond(_cond)
+  {}
 };
-typedef std::tr1::shared_ptr<StateAlertImpl> StateAlert;
 
 #endif /* TESTDRIVER_H_ */
