@@ -12,6 +12,15 @@
 
 #include "messages/MOSDOp.h"
 
+inline MOSDOp *generate_message(const char *message)
+{
+  MOSDOp *m = new MOSDOp();
+  bufferlist bl;
+  ::encode(message, bl);
+  m->writefull(bl);
+  return m;
+}
+
 /**
  * Send a test message from origin to dest and check it. They should
  * be already connected.
@@ -26,10 +35,7 @@ int send_test_message(TestDriver *driver, MDriver origin, MDriver dest)
   dest->register_alert(message_alert);
 
   // send msgr2 a message
-  MOSDOp *m = new MOSDOp();
-  bufferlist bl;
-  ::encode("send_test_message message 1", bl);
-  m->writefull(bl);
+  MOSDOp *m = generate_message("send_test_message message 1");
   origin->send_message(m, dest->get_inst());
 
   lock.Lock();
