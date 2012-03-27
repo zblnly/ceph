@@ -33,6 +33,7 @@ typedef std::tr1::shared_ptr<StateAlertImpl> StateAlert;
 class TestDriver {
 public:
   TestDriver();
+  TestDriver(CephContext *context);
   ~TestDriver(){};
 private:
   set<MDriver> msgr_drivers;

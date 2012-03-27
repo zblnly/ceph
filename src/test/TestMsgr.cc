@@ -10,12 +10,24 @@
  * TestDriver interface.
  */
 
+#include <vector>
+
+#include "common/ceph_argparse.h"
+#include "global/global_init.h"
+
 #include "msgr/TestDriver.h"
 #include "msgr/MessengerDriver.h"
 #include "msgr/msgr_test_functions.h"
 
 int main (int argc, const char **argv)
 {
-  TestDriver driver;
+  vector<const char *> args;
+  argv_to_vec(argc, argv, args);
+  env_to_vec(args);
+
+  global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
+  common_init_finish(g_ceph_context);
+
+  TestDriver driver(g_ceph_context);
   return sample_test(&driver);
 }

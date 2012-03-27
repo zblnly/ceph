@@ -19,6 +19,15 @@ TestDriver::TestDriver() : nonce(0), lock("TestDriver::lock")
   mdriver_tracker = StateTrackerImpl::create_state_tracker(MESSENGER_DRIVER);
   MessengerDriver::build_states(mdriver_tracker);
 }
+TestDriver::TestDriver(CephContext *context) :
+    nonce(0),
+    cct(context),
+    lock("TestDriver::lock")
+{
+  mdriver_tracker = StateTrackerImpl::create_state_tracker(MESSENGER_DRIVER);
+  MessengerDriver::build_states(mdriver_tracker);
+}
+
 
 // protected functions
 MDriver TestDriver::create_messenger(entity_inst_t& address)
