@@ -86,6 +86,11 @@ struct RGWRadosCtx {
     return 0;
   }
 };
+
+struct RGWPoolIterCtx {
+  librados::IoCtx io_ctx;
+  librados::ObjectIterator iter;
+};
   
 class RGWRados  : public RGWAccess
 {
@@ -379,6 +384,9 @@ public:
   int pool_list(rgw_bucket& bucket, string start, uint32_t num, map<string, RGWObjEnt>& m,
                 bool *is_truncated, string *last_entry);
 
+  int pool_iterate_begin(rgw_bucket& bucket, RGWPoolIterCtx& ctx);
+  int pool_iterate(RGWPoolIterCtx& ctx, uint32_t num, vector<RGWObjEnt>& objs,
+                   bool *is_truncated, RGWAccessListFilter *filter);
 };
 
 #endif
