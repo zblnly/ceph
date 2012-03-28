@@ -7,7 +7,7 @@
 Synopsis
 ========
 
-| **mkcephfs** [ -c *ceph.conf* ] [ --mkbtrfs ] [ -a, --all-hosts [ -k
+| **mkcephfs** [ -c *ceph.conf* ] [ -a, --all-hosts [ -k
   */path/to/admin.keyring* ] ]
 
 
@@ -69,13 +69,6 @@ Options
    client.admin keyring, which is used to administer the cluster. The
    default is ``/etc/ceph/keyring`` (or whatever is specified in the
    config file).
-
-.. option:: --mkbtrfs
-
-   Create and mount the any btrfs file systems specified in the
-   ceph.conf for OSD data storage using mkfs.btrfs. The "btrfs devs"
-   and (if it differs from "osd data") "btrfs path" options must be
-   defined.
 
 .. option:: --no-copy-conf
 
