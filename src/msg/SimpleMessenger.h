@@ -36,6 +36,7 @@ using namespace __gnu_cxx;
 #include "tcp.h"
 
 
+class MessengerDriver;
 /*
  * This class handles transmission and reception of messages. Generally
  * speaking, there are 2 major components:
@@ -132,6 +133,7 @@ public:
   /** @} Configuration functions */
 private:
   class Pipe;
+  friend class MessengerDriver;
 
   // incoming
   class Accepter : public Thread {

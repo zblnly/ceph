@@ -56,6 +56,34 @@ int send_test_message(TestDriver *driver, MDriver origin, MDriver dest)
 }
 
 /**
+ * Send a test message from origin to dest and check it. They should
+ * be already connected.
+ */
+int send_test_message_with_break(TestDriver *driver, MDriver origin, MDriver dest)
+{
+  // register a watch for new messages on dest
+  const State *received_state =
+      driver->lookup_state(MESSENGER_DRIVER, MessengerDriver::message_received);
+  StateAlert message_alert = driver->generate_alert(received_state);
+  dest->register_alert(message_alert);
+
+  // break the connection
+  dest->break_socket(origin->get_inst());
+  // send dest a message
+  MOSDOp *m = generate_message("send_test_message message 1");
+  origin->send_message(m, dest->get_inst());
+
+  wait_until_complete(message_alert);
+
+  std::cerr << "received message " << *((MOSDOp*) message_alert->get_payload())
+                      << "\nafter sending\n" << *m << std::endl;
+
+  // check that they match
+  bool match = driver->message_contents_equal(m, (Message*)message_alert->get_payload());
+  return (match? 0 : 1);
+}
+
+/**
  * Break the connection, and send a message. We expect this to fail
  * and to receive a notification on remote_reset_connection.
  * MDrivers should already be connected.
@@ -118,6 +146,12 @@ int sample_test(TestDriver *driver)
 
   std::cerr << "Sending message after breaking connection..." << std::endl;
   ret = test_broken_connection(driver, msgr1, msgr2);
+  if (ret)
+    goto shutdown;
+  std::cerr << "Success!" << std::endl;
+
+  std::cerr << "Sending message after breaking socket..." << std::endl;
+  ret = send_test_message_with_break(driver, msgr1, msgr2);
   if (ret)
     goto shutdown;
   std::cerr << "Success!" << std::endl;

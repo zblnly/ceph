@@ -8,6 +8,7 @@
  * 
  */
 #include "MessengerDriver.h"
+#include "msg/SimpleMessenger.h"
 
 int MessengerDriver::init()
 {
@@ -71,6 +72,27 @@ int MessengerDriver::break_connection(const entity_inst_t& dest)
     return -ENOTCONN;
   }
   messenger->mark_down(con);
+  con->put();
+  return 0;
+}
+
+int MessengerDriver::break_socket(const entity_inst_t& other)
+{
+  if (state != RUNNING) {
+    return -1;
+  }
+
+  Connection *con = messenger->get_connection(other);
+  if (!con) {
+    return -ENOTCONN;
+  }
+
+  SimpleMessenger::Pipe * pipe = (SimpleMessenger::Pipe*) con->get_pipe();
+  if (pipe == NULL) {
+    return -ENOENT;
+  }
+  pipe->fail_on_socket = true;
+  pipe->put();
   con->put();
   return 0;
 }

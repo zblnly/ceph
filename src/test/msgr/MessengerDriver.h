@@ -170,6 +170,8 @@ public:
    */
   virtual int break_connection(const entity_inst_t& other);
 
+  virtual int break_socket(const entity_inst_t& other);
+
   /**
    * Register a new alert that this MessengerDriver should report when
    * reaching the given state.
