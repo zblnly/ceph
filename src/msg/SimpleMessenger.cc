@@ -73,7 +73,7 @@ int SimpleMessenger::Accepter::bind(entity_addr_t &bind_addr, int avoid_port1, i
   }
 
   /* socket creation */
-  listen_sd = ::socket(family, SOCK_STREAM, 0);
+  listen_sd = ::socket(family, SOCK_STREAM, 0); // SYSCALL
   if (listen_sd < 0) {
     char buf[80];
     ldout(msgr->cct,0) << "accepter.bind unable to create socket: "
@@ -94,9 +94,9 @@ int SimpleMessenger::Accepter::bind(entity_addr_t &bind_addr, int avoid_port1, i
 
     // reuse addr+port when possible
     int on = 1;
-    ::setsockopt(listen_sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    ::setsockopt(listen_sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)); // SYSCALL
 
-    rc = ::bind(listen_sd, (struct sockaddr *) &listen_addr.ss_addr(), listen_addr.addr_size());
+    rc = ::bind(listen_sd, (struct sockaddr *) &listen_addr.ss_addr(), listen_addr.addr_size()); // SYSCALL
     if (rc < 0) {
       char buf[80];
       ldout(msgr->cct,0) << "accepter.bind unable to bind to " << bind_addr.ss_addr()
@@ -205,7 +205,7 @@ void *SimpleMessenger::Accepter::entry()
   pfd.events = POLLIN | POLLERR | POLLNVAL | POLLHUP;
   while (!done) {
     ldout(msgr->cct,20) << "accepter calling poll" << dendl;
-    int r = poll(&pfd, 1, -1);
+    int r = poll(&pfd, 1, -1); // SYSCALL
     if (r < 0)
       break;
     ldout(msgr->cct,20) << "accepter poll got " << r << dendl;
@@ -219,7 +219,7 @@ void *SimpleMessenger::Accepter::entry()
     // accept
     entity_addr_t addr;
     socklen_t slen = sizeof(addr.ss_addr());
-    int sd = ::accept(listen_sd, (sockaddr*)&addr.ss_addr(), &slen);
+    int sd = ::accept(listen_sd, (sockaddr*)&addr.ss_addr(), &slen); // SYSCALL
     if (sd >= 0) {
       errors = 0;
       ldout(msgr->cct,10) << "accepted incoming on sd " << sd << dendl;
@@ -227,7 +227,7 @@ void *SimpleMessenger::Accepter::entry()
       // disable Nagle algorithm?
       if (conf->ms_tcp_nodelay) {
 	int flag = 1;
-	int r = ::setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
+	int r = ::setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag)); // SYSCALL
 	if (r < 0)
 	  ldout(msgr->cct,0) << "accepter could't set TCP_NODELAY: " << strerror_r(errno, buf, sizeof(buf)) << dendl;
       }
@@ -254,7 +254,7 @@ void *SimpleMessenger::Accepter::entry()
   ldout(msgr->cct,20) << "accepter closing" << dendl;
   // don't close socket, in case we start up again?  blech.
   if (listen_sd >= 0) {
-    ::close(listen_sd);
+    ::close(listen_sd); // SYSCALL
     listen_sd = -1;
   }
   ldout(msgr->cct,10) << "accepter stopping" << dendl;
@@ -266,8 +266,8 @@ void SimpleMessenger::Accepter::stop()
   done = true;
   ldout(msgr->cct,10) << "stop accepter" << dendl;
   if (listen_sd >= 0) {
-    ::shutdown(listen_sd, SHUT_RDWR);
-    ::close(listen_sd);
+    ::shutdown(listen_sd, SHUT_RDWR); // SYSCALL
+    ::close(listen_sd); // SYSCALL
     listen_sd = -1;
   }
   join();
@@ -1047,12 +1047,12 @@ int SimpleMessenger::Pipe::connect()
 
   // close old socket.  this is safe because we stopped the reader thread above.
   if (sd >= 0)
-    ::close(sd);
+    ::close(sd); // SYSCALL
 
   char buf[80];
 
   // create socket?
-  sd = ::socket(peer_addr.get_family(), SOCK_STREAM, 0);
+  sd = ::socket(peer_addr.get_family(), SOCK_STREAM, 0); // SYSCALL
   if (sd < 0) {
     lderr(msgr->cct) << "connect couldn't created socket " << strerror_r(errno, buf, sizeof(buf)) << dendl;
     goto fail;
@@ -1060,7 +1060,7 @@ int SimpleMessenger::Pipe::connect()
 
   // connect!
   ldout(msgr->cct,10) << "connecting to " << peer_addr << dendl;
-  rc = ::connect(sd, (sockaddr*)&peer_addr.addr, peer_addr.addr_size());
+  rc = ::connect(sd, (sockaddr*)&peer_addr.addr, peer_addr.addr_size()); // SYSCALL
   if (rc < 0) {
     ldout(msgr->cct,2) << "connect error " << peer_addr
 	     << ", " << errno << ": " << strerror_r(errno, buf, sizeof(buf)) << dendl;
@@ -1070,7 +1070,7 @@ int SimpleMessenger::Pipe::connect()
   // disable Nagle algorithm?
   if (conf->ms_tcp_nodelay) {
     int flag = 1;
-    int r = ::setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
+    int r = ::setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag)); // SYSCALL
     if (r < 0) 
       ldout(msgr->cct,0) << "connect couldn't set TCP_NODELAY: " << strerror_r(errno, buf, sizeof(buf)) << dendl;
   }
@@ -1730,7 +1730,7 @@ void SimpleMessenger::Pipe::writer()
       state = STATE_CLOSED;
       pipe_lock.Unlock();
       if (sd) {
-	int r = ::write(sd, &tag, 1);
+	int r = ::write(sd, &tag, 1); // SYSCALL
 	// we can ignore r, actually; we don't care if this succeeds.
 	r++; r = 0; // placate gcc
       }
@@ -2066,7 +2066,7 @@ int SimpleMessenger::Pipe::do_sendmsg(struct msghdr *msg, int len, bool more)
       assert(l == len);
     }
 
-    int r = ::sendmsg(sd, msg, MSG_NOSIGNAL | (more ? MSG_MORE : 0));
+    int r = ::sendmsg(sd, msg, MSG_NOSIGNAL | (more ? MSG_MORE : 0)); // SYSCALL
     if (r == 0) 
       ldout(msgr->cct,10) << "do_sendmsg hmm do_sendmsg got r==0!" << dendl;
     if (r < 0) { 
@@ -2318,7 +2318,7 @@ void SimpleMessenger::reaper()
     pipes.erase(p);
     p->join();
     if (p->sd >= 0)
-      ::close(p->sd);
+      ::close(p->sd); // SYSCALL
     ldout(cct,10) << "reaper reaped pipe " << p << " " << p->get_peer_addr() << dendl;
     if (p->connection_state)
       p->connection_state->clear_pipe();
