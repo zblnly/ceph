@@ -172,6 +172,7 @@ private:
     
     Mutex pipe_lock;
     int state;
+    bool fail_on_socket;
 
   protected:
     friend class SimpleMessenger;
@@ -272,7 +273,7 @@ private:
       sd(-1),
       peer_type(-1),
       pipe_lock("SimpleMessenger::Pipe::pipe_lock"),
-      state(st), 
+      state(st), fail_on_socket(false),
       connection_state(new Connection),
       reader_running(false), reader_joining(false), writer_running(false),
       in_qlen(0), keepalive(false), halt_delivery(false), 
