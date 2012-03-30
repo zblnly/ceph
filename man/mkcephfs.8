@@ -1,4 +1,4 @@
-.TH "MKCEPHFS" "8" "October 17, 2011" "dev" "Ceph"
+.TH "MKCEPHFS" "8" "March 30, 2012" "dev" "Ceph"
 .SH NAME
 mkcephfs \- create a ceph file system
 .
@@ -32,7 +32,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .
 .SH SYNOPSIS
 .nf
-\fBmkcephfs\fP [ \-c \fIceph.conf\fP ] [ \-\-mkbtrfs ] [ \-a, \-\-all\-hosts [ \-k
+\fBmkcephfs\fP [ \-c \fIceph.conf\fP ] [ \-a, \-\-all\-hosts [ \-k
 \fI/path/to/admin.keyring\fP ] ]
 .fi
 .sp
@@ -108,14 +108,6 @@ When \fB\-a\fP is used, we can specify a location to copy the
 client.admin keyring, which is used to administer the cluster. The
 default is \fB/etc/ceph/keyring\fP (or whatever is specified in the
 config file).
-.UNINDENT
-.INDENT 0.0
-.TP
-.B \-\-mkbtrfs
-Create and mount the any btrfs file systems specified in the
-ceph.conf for OSD data storage using mkfs.btrfs. The "btrfs devs"
-and (if it differs from "osd data") "btrfs path" options must be
-defined.
 .UNINDENT
 .INDENT 0.0
 .TP
