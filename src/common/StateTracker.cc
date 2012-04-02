@@ -11,7 +11,7 @@
 #include "StateTracker.h"
 #include <errno.h>
 
-void StateTrackerImpl::_allocate_state(const char *state_name, int id,
+void StateMakerImpl::_allocate_state(const char *state_name, int id,
                                   int superstate)
 {
   state_names.resize(id+1);
@@ -34,7 +34,7 @@ void StateTrackerImpl::_allocate_state(const char *state_name, int id,
   assert(state_names.size() == (unsigned) state_id_alloc);
 }
 
-int StateTrackerImpl::create_new_state(const char *state_name, int superstate)
+int StateMakerImpl::create_new_state(const char *state_name, int superstate)
 {
   Mutex::Locker locker(lock);
   if (state_name_map.count(state_name)) {
@@ -51,7 +51,7 @@ int StateTrackerImpl::create_new_state(const char *state_name, int superstate)
   return id;
 }
 
-int StateTrackerImpl::create_new_state_with_id(const char *state_name, int id,
+int StateMakerImpl::create_new_state_with_id(const char *state_name, int id,
                                            int superstate)
 {
   Mutex::Locker locker(lock);
@@ -72,7 +72,7 @@ int StateTrackerImpl::create_new_state_with_id(const char *state_name, int id,
   return id;
 }
 
-const State *StateTrackerImpl::retrieve_state (int id) const
+const State *StateMakerImpl::retrieve_state (int id) const
 {
   Mutex::Locker locker(lock);
   if (id >= state_id_alloc) {
@@ -81,7 +81,7 @@ const State *StateTrackerImpl::retrieve_state (int id) const
   return states[id];
 }
 
-int StateTrackerImpl::retrieve_state_id(const char *name) const
+int StateMakerImpl::retrieve_state_id(const char *name) const
 {
   Mutex::Locker locker(lock);
   std::map<std::string, int>::const_iterator iter = state_name_map.find(name);

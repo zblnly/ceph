@@ -37,8 +37,8 @@ class MessengerDriver : public Dispatcher {
    */
   boost::scoped_ptr<Messenger> messenger;
 
-  /// StateTracker for my class
-  const StateTracker statetracker;
+  /// StateMaker for my class
+  const StateMaker statetracker;
 public:
   CephContext *cct;
   /**
@@ -52,7 +52,7 @@ public:
    * startup and takes over the reference to it.
    */
   MessengerDriver(TestDriver *testdriver, Messenger *msgr,
-                  StateTracker tracker) :
+                  StateMaker tracker) :
     Dispatcher(msgr->cct), driver(testdriver), messenger(msgr),
     statetracker(tracker), state(BUILT) {
     my_alerts.resize(num_states);
@@ -95,7 +95,7 @@ public:
     num_states
   };
 
-  static void build_states(StateTracker tracker) {
+  static void build_states(StateMaker tracker) {
     assert(!tracker->get_system_name().compare(MESSENGER_DRIVER));
     static const char *state_names[] =
     {

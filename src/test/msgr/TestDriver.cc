@@ -16,7 +16,7 @@
 TestDriver::TestDriver() : nonce(0), lock("TestDriver::lock")
 {
   cct = new CephContext(CODE_ENVIRONMENT_UTILITY);
-  mdriver_tracker = StateTrackerImpl::create_state_tracker(MESSENGER_DRIVER);
+  mdriver_tracker = StateMakerImpl::create_state_maker(MESSENGER_DRIVER);
   MessengerDriver::build_states(mdriver_tracker);
 }
 TestDriver::TestDriver(CephContext *context) :
@@ -24,7 +24,7 @@ TestDriver::TestDriver(CephContext *context) :
     cct(context),
     lock("TestDriver::lock")
 {
-  mdriver_tracker = StateTrackerImpl::create_state_tracker(MESSENGER_DRIVER);
+  mdriver_tracker = StateMakerImpl::create_state_maker(MESSENGER_DRIVER);
   MessengerDriver::build_states(mdriver_tracker);
 }
 
@@ -103,7 +103,7 @@ const State *TestDriver::lookup_state(const char *system_name, const char *state
     int id = mdriver_tracker->retrieve_state_id(state_name);
     return mdriver_tracker->retrieve_state(id);
   }
-  // it's not a StateTracker we have right now
+  // it's not a StateMaker we have right now
   return NULL;
 }
 
@@ -113,6 +113,6 @@ const State *TestDriver::lookup_state(const char *system_name, int state_id)
     // it's the MDriver system
     return mdriver_tracker->retrieve_state(state_id);
   }
-  // it's not a StateTracker we have right now
+  // it's not a StateMaker we have right now
   return NULL;
 }

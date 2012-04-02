@@ -41,7 +41,7 @@ private:
   CephContext *cct;
   Mutex lock;
   map<entity_addr_t, MDriver> driver_addresses;
-  StateTracker mdriver_tracker;
+  StateMaker mdriver_tracker;
 
   /**
    * @defgroup Orders
@@ -106,7 +106,7 @@ public:
   /**
    * Get a State reference for the given state name.
    *
-   * @param system_name The name of the StateTracker system.
+   * @param system_name The name of the StateMaker system.
    * @param state_name The name of the state.
    * @return The State, as a const pointer. Or null if either the system
    * or state does not exist.
@@ -115,7 +115,7 @@ public:
   /**
    * Get a State reference for the given state ID.
    *
-   * @param system_name The name of the StateTracker system.
+   * @param system_name The name of the StateMaker system.
    * @param state_id The id of the state.
    * @return The State, as a const pointer. Or null if either the system
    * or state does not exist.
