@@ -191,7 +191,75 @@ public:
   bool is_my_state(const State *state) const { return state->system_pointer == this; }
   ///@} // States
 };
-
 typedef std::tr1::shared_ptr<StateMakerImpl> StateMaker;
+
+/**
+ * This class holds a set of collected StateMakers which have some
+ * logical relation, like for each thread that lives within a class.
+ * Each module (including the parent) must have a consistently-used name.
+ */
+class ModularStateMakerImpl {
+  std::map<const char *, StateMaker> modules;
+  std::string name;
+  Mutex lock;
+public:
+  /**
+   * Create the StateMaker for a given module, or retrieve it if one
+   * already exists.
+   */
+  StateMaker create_maker(const char *module);
+  /**
+   * Get the StateMaker for a given module.
+   *
+   * @param module The name of the module that goes with the StateMaker.
+   */
+  StateMaker get_maker(const char *module);
+  /**
+   * Create a new ModularStateMaker.
+   */
+  static std::tr1::shared_ptr<ModularStateMakerImpl>
+  create_modular_state_maker(const char *name) {
+    std::tr1::shared_ptr<ModularStateMakerImpl>
+      modular_maker(new ModularStateMakerImpl(name));
+    return modular_maker;
+  }
+private:
+  ModularStateMakerImpl(const char *n) : name(n), lock(n) {}
+};
+typedef std::tr1::shared_ptr<ModularStateMakerImpl> ModularStateMaker;
+
+/**
+ * StateTracker
+ */
+class StateTracker {
+public:
+  /**
+   * Retrieve the StateMaker associated with a subsystem. If one
+   * doesn't exist, this creates it.
+   *
+   * @return the requested StateMaker
+   */
+  virtual StateMaker get_subsystem_maker(const char *system) = 0;
+  /**
+   * Report that you've entered a new state or substate.
+   *
+   * @param system The subsystem reporting in.
+   * @param id The id for this instance of the subsystem.
+   * @param state The name of the new state as a const char*.
+   *
+   * @return The id of the state which it's switched into.
+   */
+  virtual int report_state_changed(const char *system, int id, const char *state) = 0;
+  /**
+   * Report that you've entered a new state or substate.
+   *
+   * @param system The subsystem reporting in.
+   * @param id The id for this instance of the subsystem.
+   * @param state The ID of the new state, as an int.
+   */
+  virtual void report_state_changed(const char *system, int id, int state) = 0;
+protected:
+  ~StateTracker() {}
+};
 
 #endif /* STATETRACKER_HPP_ */

@@ -90,3 +90,25 @@ int StateMakerImpl::retrieve_state_id(const char *name) const
   }
   return -ENOENT;
 }
+
+StateMaker ModularStateMakerImpl::create_maker(const char *module)
+{
+  Mutex::Locker locker(lock);
+  std::map<const char *, StateMaker>::iterator iter = modules.find(module);
+  if (iter != modules.end()) {
+    return iter->second;
+  }
+  StateMaker module_maker = StateMakerImpl::create_state_maker(module);
+  modules[module] = module_maker;
+  return module_maker;
+}
+
+StateMaker ModularStateMakerImpl::get_maker(const char *module)
+{
+  Mutex::Locker locker(lock);
+  std::map<const char *, StateMaker>::iterator iter = modules.find(module);
+  if (iter != modules.end()) {
+    return iter->second;
+  }
+  return StateMaker();
+}
