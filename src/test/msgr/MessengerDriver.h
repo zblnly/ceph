@@ -17,6 +17,7 @@
 #include <boost/scoped_ptr.hpp>
 #include <list>
 #include <map>
+#include <vector>
 
 #define MESSENGER_DRIVER "MessengerDriver"
 
@@ -26,7 +27,7 @@
  * actions from the TestDriver into specific Messenger commands, and relays
  * important event changes from the Messenger to the TestDriver.
  */
-class MessengerDriver : public Dispatcher {
+class MessengerDriver : public Dispatcher, public StateTracker {
   /**
    * The TestDriver which I report to.
    */
@@ -39,6 +40,7 @@ class MessengerDriver : public Dispatcher {
 
   /// StateMaker for my class
   const StateMaker statetracker;
+  ModularStateMaker modular_maker;
 public:
   CephContext *cct;
   /**
@@ -50,11 +52,14 @@ public:
    * must be a valid Messenger, and any implementation-specific options must
    * be set, but the MessengerDriver will perform all of generic Messenger
    * startup and takes over the reference to it.
+   * @param msgr_maker The ModularStateMaker for the Messenger we drive.
    */
   MessengerDriver(TestDriver *testdriver, Messenger *msgr,
-                  StateMaker tracker) :
-    Dispatcher(msgr->cct), driver(testdriver), messenger(msgr),
-    statetracker(tracker), state(BUILT) {
+                  StateMaker tracker, ModularStateMaker msgr_maker) :
+    Dispatcher(msgr->cct),
+    driver(testdriver), messenger(msgr),
+    statetracker(tracker), modular_maker(msgr_maker),
+    state(BUILT) {
     my_alerts.resize(num_states);
   }
 
@@ -194,12 +199,30 @@ public:
    * @} Dispatcher
    */
 
+  /**
+   * @defgroup StateTracker
+   * @{
+   */
+  virtual StateMaker get_subsystem_maker(const char *system);
+  virtual int report_state_changed(const char *system, int id, const char *state);
+  virtual void report_state_changed(const char *system, int id, int state);
+private:
+  int create_messenger_state(StateMaker maker, const char *state);
+  /**
+   * @} StateTracker
+   */
+
 protected:
   enum STATE { BUILT, RUNNING, STOPPED, FAILED };
   STATE state;
 
   list<Message *> received_messages;
   vector<list<StateAlert> > my_alerts;
+  // TODO: messenger alerts should take into account the system_id they belong to.
+  /// subsystem -> [state_id, list]
+  map<string, map<int, list<StateAlert> > > messenger_alerts;
+  /// subsystem -> [system_id, state]
+  map<string, map<long, const State*> > messenger_states;
 };
 
 #endif /* MESSENGERDRIVER_H_ */

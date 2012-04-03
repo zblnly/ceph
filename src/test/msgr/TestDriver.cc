@@ -18,6 +18,7 @@ TestDriver::TestDriver() : nonce(0), lock("TestDriver::lock")
   cct = new CephContext(CODE_ENVIRONMENT_UTILITY);
   mdriver_tracker = StateMakerImpl::create_state_maker(MESSENGER_DRIVER);
   MessengerDriver::build_states(mdriver_tracker);
+  msgr_maker = ModularStateMakerImpl::create_modular_state_maker("SimpleMessengerMaker");
 }
 TestDriver::TestDriver(CephContext *context) :
     nonce(0),
@@ -26,6 +27,7 @@ TestDriver::TestDriver(CephContext *context) :
 {
   mdriver_tracker = StateMakerImpl::create_state_maker(MESSENGER_DRIVER);
   MessengerDriver::build_states(mdriver_tracker);
+  msgr_maker = ModularStateMakerImpl::create_modular_state_maker("SimpleMessengerMaker");
 }
 
 
@@ -36,7 +38,7 @@ MDriver TestDriver::create_messenger(entity_inst_t& address)
   SimpleMessenger *msgr = new SimpleMessenger(cct, address.name, nonce++);
   msgr->set_default_policy(Messenger::Policy::lossless_peer(0, 0));
   msgr->bind(address.addr);
-  MDriver driver(new MessengerDriver(this, msgr, mdriver_tracker));
+  MDriver driver(new MessengerDriver(this, msgr, mdriver_tracker, msgr_maker));
   driver->init();
 
   msgr_drivers.insert(driver);

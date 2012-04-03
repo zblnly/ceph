@@ -42,6 +42,7 @@ private:
   Mutex lock;
   map<entity_addr_t, MDriver> driver_addresses;
   StateMaker mdriver_tracker;
+  ModularStateMaker msgr_maker;
 
   /**
    * @defgroup Orders

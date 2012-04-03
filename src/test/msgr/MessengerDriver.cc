@@ -135,3 +135,56 @@ void MessengerDriver::ms_handle_remote_reset(Connection *c)
   }
   return;
 }
+
+StateMaker MessengerDriver::get_subsystem_maker(const char *system)
+{
+  return modular_maker->create_maker(system);
+}
+
+// TODO: make this function support super states.
+int MessengerDriver::create_messenger_state(StateMaker maker, const char *state)
+{
+  int super = -1;
+  int state_id = maker->create_new_state(state, super);
+  return state_id;
+}
+
+int MessengerDriver::report_state_changed(const char *system,
+                                          int id, const char *state)
+{
+  StateMaker maker = get_subsystem_maker(system);
+  int state_id = maker->retrieve_state_id(state);
+  if (state_id < 0) {
+    if (state_id == -ENOENT) {
+      state_id = create_messenger_state(maker, state);
+    } else {
+      assert(0); // retrieve_state_id doesn't return anything else!
+    }
+  }
+  report_state_changed(system, id, state_id);
+  return state_id;
+}
+
+void MessengerDriver::report_state_changed(const char *system, int id, int state)
+{
+  // update the messenger state listing
+  StateMaker maker = get_subsystem_maker(system);
+  const State *state_obj = maker->retrieve_state(state);
+  assert(state_obj != NULL);
+  messenger_states[system][id] = state_obj;
+
+  // check for StateAlerts to activate
+  map<string, map<int, list<StateAlert> > >::iterator iter =
+      messenger_alerts.find(system);
+  if (iter != messenger_alerts.end()) {
+    map<int, list<StateAlert> >::iterator state_iter =
+        iter->second.find(state);
+    if (state_iter != iter->second.end()) {
+      list<StateAlert>::iterator alert_iter = state_iter->second.begin();
+      while (alert_iter != state_iter->second.end()) {
+        (*alert_iter)->set_state_reached(NULL);
+        state_iter->second.erase(alert_iter++);
+      }
+    }
+  }
+}
