@@ -103,6 +103,7 @@ public:
     message_received = 0,
     lossy_connection_broke,
     remote_reset_connection,
+    new_incoming_connection,
     num_states
   };
 
@@ -112,7 +113,8 @@ public:
     {
      "message received",
      "lossy connection broke",
-     "remote reset connection"
+     "remote reset connection",
+     "new incoming connection"
     };
     for (int i = 0; i < num_states; ++i) {
       tracker->create_new_state_with_id(state_names[i], i, -1);

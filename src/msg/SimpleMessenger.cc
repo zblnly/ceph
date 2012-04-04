@@ -1594,6 +1594,7 @@ void SimpleMessenger::Pipe::stop()
  */
 void SimpleMessenger::Pipe::reader()
 {
+  REPORT_STATE(system_read, system_id, "create");
   if (state == STATE_ACCEPTING) 
     accept();
 

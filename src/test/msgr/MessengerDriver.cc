@@ -148,6 +148,16 @@ void MessengerDriver::ms_handle_remote_reset(Connection *c)
   return;
 }
 
+void MessengerDriver::new_incoming(long id)
+{
+  Mutex::Locker l(lock);
+  list<StateAlert>::iterator i = my_alerts[new_incoming_connection].begin();
+  while (i != my_alerts[new_incoming_connection].end()) {
+    (*i)->set_state_reached();
+    my_alerts[new_incoming_connection].erase(i++);
+  }
+}
+
 StateMaker MessengerDriver::get_subsystem_maker(const char *system)
 {
   return modular_maker->create_maker(system);
@@ -174,6 +184,9 @@ int MessengerDriver::report_state_changed(const char *system,
     }
   }
   report_state_changed(system, id, state_id);
+  if (!strcmp(system, "Pipe::reader") && !strcmp(state, "create")) {
+    new_incoming(id);
+  }
   return state_id;
 }
 
