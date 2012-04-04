@@ -188,3 +188,19 @@ void MessengerDriver::report_state_changed(const char *system, int id, int state
     }
   }
 }
+
+// TODO: make this actually inject some failures.
+int MessengerDriver::pre_fail(const char *system, long sysid)
+{
+  system;
+  sysid;
+  return 0;
+}
+
+// TODO: make this actually inject some failures.
+int MessengerDriver::post_fail(const char *system, long sysid)
+{
+  system;
+  sysid;
+  return 0;
+}

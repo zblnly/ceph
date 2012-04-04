@@ -27,7 +27,9 @@
  * actions from the TestDriver into specific Messenger commands, and relays
  * important event changes from the Messenger to the TestDriver.
  */
-class MessengerDriver : public Dispatcher, public StateTracker {
+class MessengerDriver : public Dispatcher,
+                        public StateTracker,
+                        public FailureInjector {
   /**
    * The TestDriver which I report to.
    */
@@ -210,6 +212,17 @@ private:
   int create_messenger_state(StateMaker maker, const char *state);
   /**
    * @} StateTracker
+   */
+
+  /**
+   * @defgroup FailureInjector
+   * @{
+   */
+public:
+  virtual int pre_fail(const char *system, long sysid);
+  virtual int post_fail(const char *system, long sysid);
+  /**
+   * @} FailureInjector
    */
 
 protected:
