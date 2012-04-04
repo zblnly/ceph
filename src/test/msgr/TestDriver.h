@@ -149,12 +149,14 @@ public:
  * Use a loop running on is_state_reached() and waiting on the Cond to wait until
  * the StateAlert has been filled in.
  *
- * LATER: extend it briefly so that we can force the MessengerDriver to wait
- * for permission from the TestDriver to continue running?
+ * If you need the alerting agent to wait for acknowledgement before proceeding,
+ * call require_signal_to_resume() and then signal the Cond once you've
+ * processed the initial alert.
  */
 class StateAlertImpl {
   const State *state;
   bool state_reached;
+  bool must_wait_to_resume;
   void *payload;
   Mutex *lock_ptr;
   Cond *cond_ptr;
@@ -168,7 +170,13 @@ public:
     state_reached = true;
     this->payload = payload;
     cond.SignalAll();
+    if (must_wait_to_resume) {
+      cond.Wait(lock);
+    }
     lock.Unlock();
+  }
+  void require_signal_to_resume() {
+    must_wait_to_resume = true;
   }
   // hold the lock when calling this function
   bool is_state_reached() {
@@ -185,7 +193,7 @@ public:
 private:
   friend class TestDriver;
   StateAlertImpl(const State *s, Mutex &_lock, Cond& _cond) : state(s),
-      state_reached(0), lock(_lock), cond(_cond)
+      state_reached(0), must_wait_to_resume(false), lock(_lock), cond(_cond)
   {}
 };
 
