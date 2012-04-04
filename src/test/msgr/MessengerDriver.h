@@ -180,9 +180,32 @@ public:
    * command is invalid (Messenger is shut down or uninitialized), 0 otherwise.
    */
   virtual int break_connection(const entity_inst_t& other);
-
-  virtual int break_socket(const entity_inst_t& other);
-
+  /**
+   * Break the socket which is connected to the given entity
+   * the given number of times.
+   * Unfortunately breaking more than once doesn't work right now; the
+   * Pipe system_ids aren't stable across reconnects.
+   * If you have it set up for one break via this function, and one
+   * break in a specific state, the specific state is checked before
+   * this generic fail-anywhere is.
+   *
+   * @param other The entity whose socket to break.
+   * @param count The number of times to break the socket. BROKEN.
+   * @return -ENOENT if we can't find a Connection; otherwise 0 on success.
+   */
+  virtual int break_socket(const entity_inst_t& other, int count);
+  /**
+   * Break the socket which is connected to the given entity
+   * the given number of times while in the given state.
+   * Unfortunately breaking more than once doesn't work right now; the
+   * Pipe system_ids aren't stable across reconnects.
+   *
+   * @param other The entity whose socket to break.
+   * @param count The number of times to break the socket. BROKEN.
+   * @return -ENOENT if we can't find a Connection; otherwise 0 on success.
+   */
+  virtual int break_socket_in(const entity_inst_t& other, int count,
+                              const State *state);
   /**
    * Register a new alert that this MessengerDriver should report when
    * reaching the given state.
@@ -222,9 +245,10 @@ private:
    * @defgroup FailureInjector
    * @{
    */
+  int do_fail_checks(const char *system, long sysid);
 public:
-  virtual int pre_fail(const char *system, long sysid);
-  virtual int post_fail(const char *system, long sysid);
+  virtual int pre_fail(const char *system, long sysid) { return do_fail_checks(system, sysid); }
+  virtual int post_fail(const char *system, long sysid) { return do_fail_checks(system, sysid); }
   /**
    * @} FailureInjector
    */
@@ -243,7 +267,7 @@ protected:
   /** system_id of Pipes that we want to break. We can't currently
    * distinguish between reader and writer breaking.
    */
-  set<long> sockets_to_break;
+  map<long, map<const State *, int> > sockets_to_break;
 };
 
 #endif /* MESSENGERDRIVER_H_ */

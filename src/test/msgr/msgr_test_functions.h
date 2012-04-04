@@ -68,7 +68,7 @@ int send_test_message_with_break(TestDriver *driver, MDriver origin, MDriver des
   dest->register_alert(message_alert);
 
   // break the connection
-  dest->break_socket(origin->get_inst());
+  dest->break_socket(origin->get_inst(), 1);
   // send dest a message
   MOSDOp *m = generate_message("send_test_message message 1");
   origin->send_message(m, dest->get_inst());

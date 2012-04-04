@@ -77,7 +77,14 @@ int MessengerDriver::break_connection(const entity_inst_t& dest)
   return 0;
 }
 
-int MessengerDriver::break_socket(const entity_inst_t& other)
+int MessengerDriver::break_socket(const entity_inst_t& other, int count)
+{
+  return break_socket_in(other, count, NULL);
+}
+
+int MessengerDriver::break_socket_in(const entity_inst_t& other,
+                                     int count,
+                                     const State *break_state)
 {
   if (state != RUNNING) {
     return -1;
@@ -90,7 +97,7 @@ int MessengerDriver::break_socket(const entity_inst_t& other)
     return -ENOENT;
   }
   lock.Lock();
-  sockets_to_break.insert((long)system);
+  sockets_to_break[(long)system].insert(pair<const State*, int>(break_state,count));
   lock.Unlock();
   system->put();
   con->put();
@@ -177,9 +184,10 @@ void MessengerDriver::report_state_changed(const char *system, int id, int state
   const State *state_obj = maker->retrieve_state(state);
   assert(state_obj != NULL);
 
-  Mutex::Locker l(lock);
+  lock.Lock();
   messenger_states[system][id] = state_obj;
 
+  set<StateAlert> alerts;
   // check for StateAlerts to activate
   map<string, map<int, list<StateAlert> > >::iterator iter =
       messenger_alerts.find(system);
@@ -189,31 +197,48 @@ void MessengerDriver::report_state_changed(const char *system, int id, int state
     if (state_iter != iter->second.end()) {
       list<StateAlert>::iterator alert_iter = state_iter->second.begin();
       while (alert_iter != state_iter->second.end()) {
-        (*alert_iter)->set_state_reached(NULL);
+        alerts.insert(*alert_iter);
         state_iter->second.erase(alert_iter++);
       }
     }
   }
-}
-
-int MessengerDriver::pre_fail(const char *system, long sysid)
-{
-  Mutex::Locker l(lock);
-  set<long>::iterator iter = sockets_to_break.find(sysid);
-  if (iter != sockets_to_break.end()) {
-    sockets_to_break.erase(iter);
-    return -1;
+  lock.Unlock();
+  for (set<StateAlert>::iterator alert = alerts.begin();
+      alert != alerts.end();
+      ++alert) {
+    (*alert)->set_state_reached();
   }
-  return 0;
 }
 
-int MessengerDriver::post_fail(const char *system, long sysid)
+int MessengerDriver::do_fail_checks(const char *system, long sysid)
 {
+  bool fail = false;
   Mutex::Locker l(lock);
-  set<long>::iterator iter = sockets_to_break.find(sysid);
+  map<long, map<const State *, int> >::iterator iter =
+      sockets_to_break.find(sysid);
   if (iter != sockets_to_break.end()) {
-    sockets_to_break.erase(iter);
-    return -1;
+    // see if the current state is a break state or not
+    const State *cur_state = messenger_states[system][sysid];
+    map<const State *, int>::iterator state_iter =
+        iter->second.find(cur_state);
+    if (state_iter == iter->second.end()) {
+      // see if we have a generic break on the socket
+      state_iter = iter->second.find(NULL);
+    }
+    if (state_iter != iter->second.end()) {
+      state_iter->second--;
+      fail = true;
+    }
+    if (state_iter->second <= 0) {
+      // erase that section
+      iter->second.erase(state_iter);
+      if (!iter->second.size()) {
+        sockets_to_break.erase(iter);
+      }
+    }
+    if (fail) {
+      return -1;
+    }
   }
   return 0;
 }
