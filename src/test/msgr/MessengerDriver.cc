@@ -83,16 +83,13 @@ int MessengerDriver::break_socket(const entity_inst_t& other)
   }
 
   Connection *con = messenger->get_connection(other);
-  if (!con) {
-    return -ENOTCONN;
-  }
 
-  SimpleMessenger::Pipe * pipe = (SimpleMessenger::Pipe*) con->get_pipe();
-  if (pipe == NULL) {
+  RefCountedObject * system = con->get_priv();
+  if (system == NULL) {
     return -ENOENT;
   }
-  pipe->fail_on_socket = true;
-  pipe->put();
+  sockets_to_break.insert((long)system);
+  system->put();
   con->put();
   return 0;
 }
@@ -189,18 +186,22 @@ void MessengerDriver::report_state_changed(const char *system, int id, int state
   }
 }
 
-// TODO: make this actually inject some failures.
 int MessengerDriver::pre_fail(const char *system, long sysid)
 {
-  system;
-  sysid;
+  set<long>::iterator iter = sockets_to_break.find(sysid);
+  if (iter != sockets_to_break.end()) {
+    sockets_to_break.erase(iter);
+    return -1;
+  }
   return 0;
 }
 
-// TODO: make this actually inject some failures.
 int MessengerDriver::post_fail(const char *system, long sysid)
 {
-  system;
-  sysid;
+  set<long>::iterator iter = sockets_to_break.find(sysid);
+  if (iter != sockets_to_break.end()) {
+    sockets_to_break.erase(iter);
+    return -1;
+  }
   return 0;
 }

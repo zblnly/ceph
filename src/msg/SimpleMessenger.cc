@@ -50,9 +50,22 @@ static ostream& _prefix(std::ostream *_dout, SimpleMessenger *msgr) {
 }
 
 
-// failure injection macro
-#define fail_point(a) (fail_on_socket ? shutdown_socket(), fail_on_socket = false, -1 : a)
+// failure injection
+#include "common/StateTracker.h"
+#include "test/msgr/failure_injector.h"
 
+#define check_failure(system, sysid, func) \
+    (msgr->failure_injector->pre_fail(system, sysid) ? -1 : \
+    func | msgr->failure_injector->post_fail(system, sysid))
+#define fail_point(system, sysid, func) (msgr->failure_injector ? \
+    check_failure(system, sysid, func) : func)
+#define msgr_fail_point(func) fail_point(msgr_system, system_id, func)
+#define accepter_fail_point(func) fail_point(accepter_system, system_id, func)
+#define writer_fail_point(func) fail_point(system_write, system_id, func)
+#define reader_fail_point(func) fail_point(system_read, system_id, func)
+
+#define REPORT_STATE(system, sysid, state) if (msgr->tracker)\
+  msgr->tracker->report_state_changed(system, sysid, state)
 
 /********************************************
  * Accepter
@@ -615,7 +628,7 @@ int SimpleMessenger::Pipe::accept()
   assert(state == STATE_ACCEPTING);
   
   // announce myself.
-  int rc = fail_point(tcp_write(msgr->cct, sd, CEPH_BANNER, strlen(CEPH_BANNER)));
+  int rc = reader_fail_point(tcp_write(msgr->cct, sd, CEPH_BANNER, strlen(CEPH_BANNER)));
   if (rc < 0) {
     ldout(msgr->cct,10) << "accept couldn't write banner" << dendl;
     state = STATE_CLOSED;
@@ -638,7 +651,7 @@ int SimpleMessenger::Pipe::accept()
   }
   ::encode(socket_addr, addrs);
 
-  rc = fail_point(tcp_write(msgr->cct, sd, addrs.c_str(), addrs.length()));
+  rc = reader_fail_point(tcp_write(msgr->cct, sd, addrs.c_str(), addrs.length()));
   if (rc < 0) {
     ldout(msgr->cct,10) << "accept couldn't write my+peer addr" << dendl;
     state = STATE_CLOSED;
@@ -649,7 +662,7 @@ int SimpleMessenger::Pipe::accept()
   
   // identify peer
   char banner[strlen(CEPH_BANNER)+1];
-  rc = fail_point(tcp_read(msgr->cct, sd, banner, strlen(CEPH_BANNER), msgr->timeout));
+  rc = reader_fail_point(tcp_read(msgr->cct, sd, banner, strlen(CEPH_BANNER), msgr->timeout));
   if (rc < 0) {
     ldout(msgr->cct,10) << "accept couldn't read banner" << dendl;
     state = STATE_CLOSED;
@@ -666,7 +679,7 @@ int SimpleMessenger::Pipe::accept()
     bufferptr tp(sizeof(peer_addr));
     addrbl.push_back(tp);
   }
-  rc = fail_point(tcp_read(msgr->cct, sd, addrbl.c_str(), addrbl.length(), msgr->timeout));
+  rc = reader_fail_point(tcp_read(msgr->cct, sd, addrbl.c_str(), addrbl.length(), msgr->timeout));
   if (rc < 0) {
     ldout(msgr->cct,10) << "accept couldn't read peer_addr" << dendl;
     state = STATE_CLOSED;
@@ -701,7 +714,7 @@ int SimpleMessenger::Pipe::accept()
   int reply_tag = 0;
   uint64_t existing_seq = -1;
   while (1) {
-    rc = fail_point(tcp_read(msgr->cct, sd, (char*)&connect, sizeof(connect), msgr->timeout));
+    rc = reader_fail_point(tcp_read(msgr->cct, sd, (char*)&connect, sizeof(connect), msgr->timeout));
     if (rc < 0) {
       ldout(msgr->cct,10) << "accept couldn't read connect" << dendl;
       goto fail_unlocked;
@@ -711,7 +724,7 @@ int SimpleMessenger::Pipe::accept()
     authorizer.clear();
     if (connect.authorizer_len) {
       bp = buffer::create(connect.authorizer_len);
-      if (fail_point(tcp_read(msgr->cct, sd, bp.c_str(), connect.authorizer_len, msgr->timeout)) < 0) {
+      if (reader_fail_point(tcp_read(msgr->cct, sd, bp.c_str(), connect.authorizer_len, msgr->timeout)) < 0) {
         ldout(msgr->cct,10) << "accept couldn't read connect authorizer" << dendl;
         goto fail_unlocked;
       }
@@ -898,11 +911,11 @@ int SimpleMessenger::Pipe::accept()
   reply:
     reply.features = ((uint64_t)connect.features & policy.features_supported) | policy.features_required;
     reply.authorizer_len = authorizer_reply.length();
-    rc = fail_point(tcp_write(msgr->cct, sd, (char*)&reply, sizeof(reply)));
+    rc = reader_fail_point(tcp_write(msgr->cct, sd, (char*)&reply, sizeof(reply)));
     if (rc < 0)
       goto fail_unlocked;
     if (reply.authorizer_len) {
-      rc = fail_point(tcp_write(msgr->cct, sd, authorizer_reply.c_str(), authorizer_reply.length()));
+      rc = reader_fail_point(tcp_write(msgr->cct, sd, authorizer_reply.c_str(), authorizer_reply.length()));
       if (rc < 0)
 	goto fail_unlocked;
     }
@@ -964,13 +977,13 @@ int SimpleMessenger::Pipe::accept()
   register_pipe();
   msgr->lock.Unlock();
 
-  rc = fail_point(tcp_write(msgr->cct, sd, (char*)&reply, sizeof(reply)));
+  rc = reader_fail_point(tcp_write(msgr->cct, sd, (char*)&reply, sizeof(reply)));
   if (rc < 0) {
     goto fail_unlocked;
   }
 
   if (reply.authorizer_len) {
-    rc = fail_point(tcp_write(msgr->cct, sd, authorizer_reply.c_str(), authorizer_reply.length()));
+    rc = reader_fail_point(tcp_write(msgr->cct, sd, authorizer_reply.c_str(), authorizer_reply.length()));
     if (rc < 0) {
       goto fail_unlocked;
     }
@@ -978,11 +991,11 @@ int SimpleMessenger::Pipe::accept()
 
   if (reply_tag == CEPH_MSGR_TAG_SEQ) {
     uint64_t newly_acked_seq = 0;
-    if(fail_point(tcp_write(msgr->cct, sd, (char*)&existing_seq, sizeof(existing_seq))) < 0) {
+    if(reader_fail_point(tcp_write(msgr->cct, sd, (char*)&existing_seq, sizeof(existing_seq))) < 0) {
       ldout(msgr->cct,2) << "accept write error on in_seq" << dendl;
       goto fail_unlocked;
     }
-    if(fail_point(tcp_read(msgr->cct, sd, (char*)&newly_acked_seq, sizeof(newly_acked_seq))) < 0) {
+    if(reader_fail_point(tcp_read(msgr->cct, sd, (char*)&newly_acked_seq, sizeof(newly_acked_seq))) < 0) {
       ldout(msgr->cct,2) << "accept read error on newly_acked_seq" << dendl;
       goto fail_unlocked;
     }
@@ -1081,7 +1094,7 @@ int SimpleMessenger::Pipe::connect()
 
   // verify banner
   // FIXME: this should be non-blocking, or in some other way verify the banner as we get it.
-  rc = fail_point(tcp_read(msgr->cct, sd, (char*)&banner, strlen(CEPH_BANNER), msgr->timeout));
+  rc = writer_fail_point(tcp_read(msgr->cct, sd, (char*)&banner, strlen(CEPH_BANNER), msgr->timeout));
   if (rc < 0) {
     ldout(msgr->cct,2) << "connect couldn't read banner, " << strerror_r(errno, buf, sizeof(buf)) << dendl;
     goto fail;
@@ -1107,7 +1120,7 @@ int SimpleMessenger::Pipe::connect()
     bufferptr p(sizeof(paddr) * 2);
     addrbl.push_back(p);
   }
-  rc = fail_point(tcp_read(msgr->cct, sd, addrbl.c_str(), addrbl.length(), msgr->timeout));
+  rc = writer_fail_point(tcp_read(msgr->cct, sd, addrbl.c_str(), addrbl.length(), msgr->timeout));
   if (rc < 0) {
     ldout(msgr->cct,2) << "connect couldn't read peer addrs, " << strerror_r(errno, buf, sizeof(buf)) << dendl;
     goto fail;
@@ -1193,7 +1206,7 @@ int SimpleMessenger::Pipe::connect()
 
     ldout(msgr->cct,20) << "connect wrote (self +) cseq, waiting for reply" << dendl;
     ceph_msg_connect_reply reply;
-    if (fail_point(tcp_read(msgr->cct, sd, (char*)&reply, sizeof(reply), msgr->timeout)) < 0) {
+    if (writer_fail_point(tcp_read(msgr->cct, sd, (char*)&reply, sizeof(reply), msgr->timeout)) < 0) {
       ldout(msgr->cct,2) << "connect read reply " << strerror_r(errno, buf, sizeof(buf)) << dendl;
       goto fail;
     }
@@ -1209,7 +1222,7 @@ int SimpleMessenger::Pipe::connect()
     if (reply.authorizer_len) {
       ldout(msgr->cct,10) << "reply.authorizer_len=" << reply.authorizer_len << dendl;
       bufferptr bp = buffer::create(reply.authorizer_len);
-      if (fail_point(tcp_read(msgr->cct, sd, bp.c_str(), reply.authorizer_len, msgr->timeout)) < 0) {
+      if (writer_fail_point(tcp_read(msgr->cct, sd, bp.c_str(), reply.authorizer_len, msgr->timeout)) < 0) {
         ldout(msgr->cct,10) << "connect couldn't read connect authorizer_reply" << dendl;
 	goto fail;
       }
@@ -1294,12 +1307,12 @@ int SimpleMessenger::Pipe::connect()
       if (reply.tag == CEPH_MSGR_TAG_SEQ) {
         ldout(msgr->cct,10) << "got CEPH_MSGR_TAG_SEQ, reading acked_seq and writing in_seq" << dendl;
         uint64_t newly_acked_seq = 0;
-        if (fail_point(tcp_read(msgr->cct, sd, (char*)&newly_acked_seq, sizeof(newly_acked_seq))) < 0) {
+        if (writer_fail_point(tcp_read(msgr->cct, sd, (char*)&newly_acked_seq, sizeof(newly_acked_seq))) < 0) {
           ldout(msgr->cct,2) << "connect read error on newly_acked_seq" << dendl;
           goto fail_locked;
         }
         handle_ack(newly_acked_seq);
-        if (fail_point(tcp_write(msgr->cct, sd, (char*)&in_seq, sizeof(in_seq))) < 0) {
+        if (writer_fail_point(tcp_write(msgr->cct, sd, (char*)&in_seq, sizeof(in_seq))) < 0) {
           ldout(msgr->cct,2) << "connect write error on in_seq" << dendl;
           goto fail_locked;
         }
@@ -1600,7 +1613,7 @@ void SimpleMessenger::Pipe::reader()
     char buf[80];
     char tag = -1;
     ldout(msgr->cct,20) << "reader reading tag..." << dendl;
-    int rc = fail_point(tcp_read(msgr->cct, sd, (char*)&tag, 1, msgr->timeout));
+    int rc = reader_fail_point(tcp_read(msgr->cct, sd, (char*)&tag, 1, msgr->timeout));
     if (rc < 0) {
       pipe_lock.Lock();
       ldout(msgr->cct,2) << "reader couldn't read tag, " << strerror_r(errno, buf, sizeof(buf)) << dendl;
@@ -1618,7 +1631,7 @@ void SimpleMessenger::Pipe::reader()
     if (tag == CEPH_MSGR_TAG_ACK) {
       ldout(msgr->cct,20) << "reader got ACK" << dendl;
       ceph_le64 seq;
-      int rc = fail_point(tcp_read(msgr->cct,  sd, (char*)&seq, sizeof(seq), msgr->timeout));
+      int rc = reader_fail_point(tcp_read(msgr->cct,  sd, (char*)&seq, sizeof(seq), msgr->timeout));
       pipe_lock.Lock();
       if (rc < 0) {
 	ldout(msgr->cct,2) << "reader couldn't read ack seq, " << strerror_r(errno, buf, sizeof(buf)) << dendl;
@@ -1872,12 +1885,12 @@ int SimpleMessenger::Pipe::read_message(Message **pm)
   __u32 header_crc;
   
   if (connection_state->has_feature(CEPH_FEATURE_NOSRCADDR)) {
-    if (fail_point(tcp_read(msgr->cct,  sd, (char*)&header, sizeof(header), msgr->timeout )) < 0)
+    if (reader_fail_point(tcp_read(msgr->cct,  sd, (char*)&header, sizeof(header), msgr->timeout )) < 0)
       return -1;
     header_crc = ceph_crc32c_le(0, (unsigned char *)&header, sizeof(header) - sizeof(header.crc));
   } else {
     ceph_msg_header_old oldheader;
-    if (fail_point(tcp_read(msgr->cct,  sd, (char*)&oldheader, sizeof(oldheader), msgr->timeout )) < 0)
+    if (reader_fail_point(tcp_read(msgr->cct,  sd, (char*)&oldheader, sizeof(oldheader), msgr->timeout )) < 0)
       return -1;
     // this is fugly
     memcpy(&header, &oldheader, sizeof(header));
@@ -1936,7 +1949,7 @@ int SimpleMessenger::Pipe::read_message(Message **pm)
   front_len = header.front_len;
   if (front_len) {
     bufferptr bp = buffer::create(front_len);
-    if (fail_point(tcp_read(msgr->cct,  sd, bp.c_str(), front_len, msgr->timeout )) < 0)
+    if (reader_fail_point(tcp_read(msgr->cct,  sd, bp.c_str(), front_len, msgr->timeout )) < 0)
       goto out_dethrottle;
     front.push_back(bp);
     ldout(msgr->cct,20) << "reader got front " << front.length() << dendl;
@@ -1946,7 +1959,7 @@ int SimpleMessenger::Pipe::read_message(Message **pm)
   middle_len = header.middle_len;
   if (middle_len) {
     bufferptr bp = buffer::create(middle_len);
-    if (fail_point(tcp_read(msgr->cct,  sd, bp.c_str(), middle_len, msgr->timeout )) < 0)
+    if (reader_fail_point(tcp_read(msgr->cct,  sd, bp.c_str(), middle_len, msgr->timeout )) < 0)
       goto out_dethrottle;
     middle.push_back(bp);
     ldout(msgr->cct,20) << "reader got middle " << middle.length() << dendl;
@@ -1966,7 +1979,7 @@ int SimpleMessenger::Pipe::read_message(Message **pm)
 	
     while (left > 0) {
       // wait for data
-      if (fail_point(tcp_read_wait(sd, msgr->timeout)) < 0)
+      if (reader_fail_point(tcp_read_wait(sd, msgr->timeout)) < 0)
 	goto out_dethrottle;
 
       // get a buffer
@@ -1996,7 +2009,7 @@ int SimpleMessenger::Pipe::read_message(Message **pm)
       bufferptr bp = blp.get_current_ptr();
       int read = MIN(bp.length(), left);
       ldout(msgr->cct,20) << "reader reading nonblocking into " << (void*)bp.c_str() << " len " << bp.length() << dendl;
-      int got = fail_point(tcp_read_nonblocking(msgr->cct, sd, bp.c_str(), read));
+      int got = reader_fail_point(tcp_read_nonblocking(msgr->cct, sd, bp.c_str(), read));
       ldout(msgr->cct,30) << "reader read " << got << " of " << read << dendl;
       connection_state->lock.Unlock();
       if (got < 0)
@@ -2011,7 +2024,7 @@ int SimpleMessenger::Pipe::read_message(Message **pm)
   }
 
   // footer
-  if (fail_point(tcp_read(msgr->cct, sd, (char*)&footer, sizeof(footer), msgr->timeout)) < 0)
+  if (reader_fail_point(tcp_read(msgr->cct, sd, (char*)&footer, sizeof(footer), msgr->timeout)) < 0)
     goto out_dethrottle;
   
   aborted = (footer.flags & CEPH_MSG_FOOTER_COMPLETE) == 0;

@@ -174,7 +174,6 @@ private:
     
     Mutex pipe_lock;
     int state;
-    bool fail_on_socket;
 
   protected:
     friend class SimpleMessenger;
@@ -200,6 +199,10 @@ private:
     uint64_t out_seq;
     uint64_t in_seq, in_seq_acked;
     
+    const char *system_write;
+    const char *system_read;
+    long system_id;
+
     int accept();   // server handshake
     int connect();  // client handshake
     void reader();
@@ -275,14 +278,16 @@ private:
       sd(-1),
       peer_type(-1),
       pipe_lock("SimpleMessenger::Pipe::pipe_lock"),
-      state(st), fail_on_socket(false),
+      state(st),
       connection_state(new Connection),
       reader_running(false), reader_joining(false), writer_running(false),
       in_qlen(0), keepalive(false), halt_delivery(false), 
       close_on_empty(false), disposable(false),
       connect_seq(0), peer_global_seq(0),
       out_seq(0), in_seq(0), in_seq_acked(0),
+      system_write("Pipe::writer"), system_read("Pipe::reader"),
       reader_thread(this), writer_thread(this) {
+      system_id = (long)this;
       connection_state->pipe = get();
       msgr->timeout = msgr->cct->_conf->ms_tcp_read_timeout * 1000; //convert to ms
       if (msgr->timeout == 0)
@@ -573,6 +578,10 @@ private:
   /// internal cluster protocol version, if any, for talking to entities of the same type.
   int cluster_protocol;
 
+  const char *msgr_system;
+  const char *accepter_system;
+  long system_id;
+
   int get_proto_version(int peer_type, bool connect);
 
 public:
@@ -586,8 +595,10 @@ public:
     reaper_thread(this), reaper_started(false), reaper_stop(false), 
     dispatch_thread(this), msgr(this),
     timeout(0),
-    cluster_protocol(0)
+    cluster_protocol(0),
+    msgr_system("SimpleMessenger"), accepter_system("Accepter")
   {
+    system_id = (long)this;
     // for local dmsg delivery
     dispatch_queue.local_pipe = new Pipe(this, Pipe::STATE_OPEN);
     init_local_pipe();

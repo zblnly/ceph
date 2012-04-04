@@ -34,6 +34,8 @@ using namespace std;
 class MDS;
 class Timer;
 
+class StateTracker;
+class FailureInjector;
 
 class Messenger {
 public:
@@ -81,10 +83,14 @@ protected:
 
  public:
   CephContext *cct;
+  // failure injection bits
+  StateTracker *tracker;
+  FailureInjector *failure_injector;
   Messenger(CephContext *cct_, entity_name_t w)
     : my_inst(),
       default_send_priority(CEPH_MSG_PRIO_DEFAULT), started(false),
-      cct(cct_)
+      cct(cct_),
+      tracker(NULL), failure_injector(NULL)
   {
     my_inst.name = w;
   }

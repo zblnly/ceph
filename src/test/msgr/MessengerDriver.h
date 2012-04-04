@@ -12,12 +12,14 @@
 
 #include "msg/Messenger.h"
 #include "TestDriver.h"
+#include "failure_injector.h"
 #include "common/StateTracker.h"
 
 #include <boost/scoped_ptr.hpp>
 #include <list>
 #include <map>
 #include <vector>
+#include <set>
 
 #define MESSENGER_DRIVER "MessengerDriver"
 
@@ -63,6 +65,8 @@ public:
     statetracker(tracker), modular_maker(msgr_maker),
     state(BUILT) {
     my_alerts.resize(num_states);
+    messenger->tracker = this;
+    messenger->failure_injector = this;
   }
 
   virtual ~MessengerDriver() {
@@ -236,6 +240,10 @@ protected:
   map<string, map<int, list<StateAlert> > > messenger_alerts;
   /// subsystem -> [system_id, state]
   map<string, map<long, const State*> > messenger_states;
+  /** system_id of Pipes that we want to break. We can't currently
+   * distinguish between reader and writer breaking.
+   */
+  set<long> sockets_to_break;
 };
 
 #endif /* MESSENGERDRIVER_H_ */
