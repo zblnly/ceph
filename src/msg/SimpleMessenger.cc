@@ -623,7 +623,7 @@ void SimpleMessenger::Pipe::queue_received(Message *m, int priority)
 int SimpleMessenger::Pipe::accept()
 {
   ldout(msgr->cct,10) << "accept" << dendl;
-
+  REPORT_STATE(system_read, system_id, "accept");
   // my creater gave me sd via accept()
   assert(state == STATE_ACCEPTING);
   
@@ -952,6 +952,7 @@ int SimpleMessenger::Pipe::accept()
   existing->pipe_lock.Unlock();
 
  open:
+  REPORT_STATE(system_read, system_id, "accept::open");
   // open
   connect_seq = connect.connect_seq + 1;
   peer_global_seq = connect.global_seq;
@@ -1012,6 +1013,7 @@ int SimpleMessenger::Pipe::accept()
   return 0;   // success.
 
  fail_unlocked:
+  REPORT_STATE(system_read, system_id, "accept::fail_unlocked");
   pipe_lock.Lock();
   {
     bool queued = is_queued();
@@ -1027,6 +1029,7 @@ int SimpleMessenger::Pipe::accept()
   return -1;
 
  shutting_down:
+  REPORT_STATE(system_read, system_id, "accept::shutting_down");
   msgr->lock.Unlock();
   pipe_lock.Lock();
   state = STATE_CLOSED;
@@ -2412,7 +2415,6 @@ SimpleMessenger::Pipe *SimpleMessenger::connect_rank(const entity_addr_t& addr, 
   assert(addr != my_inst.addr);
   
   ldout(cct,10) << "connect_rank to " << addr << ", creating pipe and registering" << dendl;
-  
   // create pipe
   Pipe *pipe = new Pipe(this, Pipe::STATE_CONNECTING);
   pipe->pipe_lock.Lock();
