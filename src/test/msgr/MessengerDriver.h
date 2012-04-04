@@ -63,7 +63,7 @@ public:
     Dispatcher(msgr->cct),
     driver(testdriver), messenger(msgr),
     statetracker(tracker), modular_maker(msgr_maker),
-    state(BUILT) {
+    state(BUILT), lock("MessengerDriver::lock") {
     my_alerts.resize(num_states);
     messenger->tracker = this;
     messenger->failure_injector = this;
@@ -232,7 +232,7 @@ public:
 protected:
   enum STATE { BUILT, RUNNING, STOPPED, FAILED };
   STATE state;
-
+  Mutex lock;
   list<Message *> received_messages;
   vector<list<StateAlert> > my_alerts;
   // TODO: messenger alerts should take into account the system_id they belong to.

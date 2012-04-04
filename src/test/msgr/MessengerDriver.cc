@@ -12,6 +12,7 @@
 
 int MessengerDriver::init()
 {
+  Mutex::Locker l(lock);
   int ret = 0;
   messenger->add_dispatcher_head(this);
   ret = messenger->start();
@@ -88,7 +89,9 @@ int MessengerDriver::break_socket(const entity_inst_t& other)
   if (system == NULL) {
     return -ENOENT;
   }
+  lock.Lock();
   sockets_to_break.insert((long)system);
+  lock.Unlock();
   system->put();
   con->put();
   return 0;
@@ -99,11 +102,14 @@ void MessengerDriver::register_alert(StateAlert alert)
   // right now we can't handle Messenger states
   assert(statetracker->is_my_state(alert->get_watched_state()));
 
+  lock.Lock();
   my_alerts[alert->get_watched_state()->state_id].push_back(alert);
+  lock.Unlock();
 }
 
 bool MessengerDriver::ms_dispatch(Message *m)
 {
+  Mutex::Locker l(lock);
   received_messages.push_back(m);
   list<StateAlert>::iterator i = my_alerts[message_received].begin();
   while (i != my_alerts[message_received].end()) {
@@ -115,6 +121,7 @@ bool MessengerDriver::ms_dispatch(Message *m)
 
 bool MessengerDriver::ms_handle_reset(Connection *c)
 {
+  Mutex::Locker l(lock);
   list<StateAlert>::iterator i = my_alerts[lossy_connection_broke].begin();
   while (i != my_alerts[lossy_connection_broke].end()) {
     (*i)->set_state_reached();
@@ -125,6 +132,7 @@ bool MessengerDriver::ms_handle_reset(Connection *c)
 
 void MessengerDriver::ms_handle_remote_reset(Connection *c)
 {
+  Mutex::Locker l(lock);
   list<StateAlert>::iterator i = my_alerts[remote_reset_connection].begin();
   while (i != my_alerts[remote_reset_connection].end()) {
     (*i)->set_state_reached();
@@ -168,6 +176,8 @@ void MessengerDriver::report_state_changed(const char *system, int id, int state
   StateMaker maker = get_subsystem_maker(system);
   const State *state_obj = maker->retrieve_state(state);
   assert(state_obj != NULL);
+
+  Mutex::Locker l(lock);
   messenger_states[system][id] = state_obj;
 
   // check for StateAlerts to activate
@@ -188,6 +198,7 @@ void MessengerDriver::report_state_changed(const char *system, int id, int state
 
 int MessengerDriver::pre_fail(const char *system, long sysid)
 {
+  Mutex::Locker l(lock);
   set<long>::iterator iter = sockets_to_break.find(sysid);
   if (iter != sockets_to_break.end()) {
     sockets_to_break.erase(iter);
@@ -198,6 +209,7 @@ int MessengerDriver::pre_fail(const char *system, long sysid)
 
 int MessengerDriver::post_fail(const char *system, long sysid)
 {
+  Mutex::Locker l(lock);
   set<long>::iterator iter = sockets_to_break.find(sysid);
   if (iter != sockets_to_break.end()) {
     sockets_to_break.erase(iter);
