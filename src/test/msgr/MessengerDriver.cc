@@ -116,45 +116,71 @@ void MessengerDriver::register_alert(StateAlert alert)
 
 bool MessengerDriver::ms_dispatch(Message *m)
 {
-  Mutex::Locker l(lock);
-  received_messages.push_back(m);
+  lock.Lock();
   list<StateAlert>::iterator i = my_alerts[message_received].begin();
+  set<StateAlert> alerts;
   while (i != my_alerts[message_received].end()) {
-    (*i)->set_state_reached(m->get());
+    alerts.insert(*i);
     my_alerts[message_received].erase(i++);
+  }
+  lock.Unlock();
+  for (set<StateAlert>::iterator alert = alerts.begin();
+      alert != alerts.end();
+      ++alert) {
+    (*alert)->set_state_reached(m);
   }
   return true;
 }
 
 bool MessengerDriver::ms_handle_reset(Connection *c)
 {
-  Mutex::Locker l(lock);
+  lock.Lock();
   list<StateAlert>::iterator i = my_alerts[lossy_connection_broke].begin();
+  set<StateAlert> alerts;
   while (i != my_alerts[lossy_connection_broke].end()) {
-    (*i)->set_state_reached();
+    alerts.insert(*i);
     my_alerts[lossy_connection_broke].erase(i++);
+  }
+  lock.Unlock();
+  for (set<StateAlert>::iterator alert = alerts.begin();
+      alert != alerts.end();
+      ++alert) {
+    (*alert)->set_state_reached();
   }
   return true;
 }
 
 void MessengerDriver::ms_handle_remote_reset(Connection *c)
 {
-  Mutex::Locker l(lock);
+  lock.Lock();
   list<StateAlert>::iterator i = my_alerts[remote_reset_connection].begin();
+  set<StateAlert> alerts;
   while (i != my_alerts[remote_reset_connection].end()) {
-    (*i)->set_state_reached();
+    alerts.insert(*i);
     my_alerts[remote_reset_connection].erase(i++);
   }
-  return;
+  lock.Unlock();
+  for (set<StateAlert>::iterator alert = alerts.begin();
+      alert != alerts.end();
+      ++alert) {
+    (*alert)->set_state_reached();
+  }
 }
 
 void MessengerDriver::new_incoming(long id)
 {
-  Mutex::Locker l(lock);
+  lock.Lock();
   list<StateAlert>::iterator i = my_alerts[new_incoming_connection].begin();
+  set<StateAlert> alerts;
   while (i != my_alerts[new_incoming_connection].end()) {
-    (*i)->set_state_reached();
+    alerts.insert(*i);
     my_alerts[new_incoming_connection].erase(i++);
+  }
+  lock.Unlock();
+  for (set<StateAlert>::iterator alert = alerts.begin();
+      alert != alerts.end();
+      ++alert) {
+    (*alert)->set_state_reached((void*)id);
   }
 }
 
