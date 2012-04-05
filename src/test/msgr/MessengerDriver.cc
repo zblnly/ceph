@@ -210,7 +210,7 @@ int MessengerDriver::create_messenger_state(StateMaker maker, const char *state)
 }
 
 int MessengerDriver::report_state_changed(const char *system,
-                                          int id, const char *state)
+                                          long id, const char *state)
 {
   StateMaker maker = get_subsystem_maker(system);
   int state_id = maker->retrieve_state_id(state);
@@ -228,7 +228,7 @@ int MessengerDriver::report_state_changed(const char *system,
   return state_id;
 }
 
-void MessengerDriver::report_state_changed(const char *system, int id, int state)
+void MessengerDriver::report_state_changed(const char *system, long id, int state)
 {
   // update the messenger state listing
   StateMaker maker = get_subsystem_maker(system);

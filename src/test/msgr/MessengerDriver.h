@@ -250,8 +250,8 @@ public:
    * @{
    */
   virtual StateMaker get_subsystem_maker(const char *system);
-  virtual int report_state_changed(const char *system, int id, const char *state);
-  virtual void report_state_changed(const char *system, int id, int state);
+  virtual int report_state_changed(const char *system, long id, const char *state);
+  virtual void report_state_changed(const char *system, long id, int state);
 private:
   int create_messenger_state(StateMaker maker, const char *state);
   /**

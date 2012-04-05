@@ -249,7 +249,7 @@ public:
    *
    * @return The id of the state which it's switched into.
    */
-  virtual int report_state_changed(const char *system, int id, const char *state) = 0;
+  virtual int report_state_changed(const char *system, long id, const char *state) = 0;
   /**
    * Report that you've entered a new state or substate.
    *
@@ -257,7 +257,7 @@ public:
    * @param id The id for this instance of the subsystem.
    * @param state The ID of the new state, as an int.
    */
-  virtual void report_state_changed(const char *system, int id, int state) = 0;
+  virtual void report_state_changed(const char *system, long id, int state) = 0;
 protected:
   ~StateTracker() {}
 };
