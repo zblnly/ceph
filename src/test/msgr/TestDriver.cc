@@ -105,8 +105,15 @@ const State *TestDriver::lookup_state(const char *system_name, const char *state
     int id = mdriver_tracker->retrieve_state_id(state_name);
     return mdriver_tracker->retrieve_state(id);
   }
-  // it's not a StateMaker we have right now
-  return NULL;
+  // otherwise assume it's a messenger state
+  StateMaker maker = msgr_maker->create_maker(system_name);
+  int id = maker->retrieve_state_id(state_name);
+  if (id < 0) {
+    id = maker->create_new_state(state_name, -1);
+  }
+  // technically that creation could race; we could fix it by redoing
+  // the lookup by state_name here
+  return maker->retrieve_state(id);
 }
 
 const State *TestDriver::lookup_state(const char *system_name, int state_id)
