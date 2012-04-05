@@ -79,13 +79,6 @@ int MessengerDriver::break_connection(const entity_inst_t& dest)
 
 int MessengerDriver::break_socket(const entity_inst_t& other, int count)
 {
-  return break_socket_in(other, count, NULL);
-}
-
-int MessengerDriver::break_socket_in(const entity_inst_t& other,
-                                     int count,
-                                     const State *break_state)
-{
   if (state != RUNNING) {
     return -1;
   }
@@ -96,11 +89,22 @@ int MessengerDriver::break_socket_in(const entity_inst_t& other,
   if (system == NULL) {
     return -ENOENT;
   }
-  lock.Lock();
-  sockets_to_break[(long)system].insert(pair<const State*, int>(break_state,count));
-  lock.Unlock();
   system->put();
   con->put();
+
+  return break_socket_in(long(system), count, NULL);
+}
+
+int MessengerDriver::break_socket_in(long system_id,
+                                     int count,
+                                     const State *break_state)
+{
+  if (state != RUNNING) {
+    return -1;
+  }
+  lock.Lock();
+  sockets_to_break[system_id].insert(pair<const State*, int>(break_state,count));
+  lock.Unlock();
   return 0;
 }
 
@@ -111,6 +115,14 @@ void MessengerDriver::register_alert(StateAlert alert)
 
   lock.Lock();
   my_alerts[alert->get_watched_state()->state_id].push_back(alert);
+  lock.Unlock();
+}
+
+void MessengerDriver::register_msgr_alert(StateAlert alert, const char *system,
+                                          long sysid)
+{
+  lock.Lock();
+  messenger_alerts[system][alert->get_watched_state()->state_id].push_back(alert);
   lock.Unlock();
 }
 

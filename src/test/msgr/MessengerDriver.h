@@ -192,7 +192,7 @@ public:
    * this generic fail-anywhere is.
    *
    * @param other The entity whose socket to break.
-   * @param count The number of times to break the socket. BROKEN.
+   * @param count The number of times to break the socket. BROKEN -- pass 1.
    * @return -ENOENT if we can't find a Connection; otherwise 0 on success.
    */
   virtual int break_socket(const entity_inst_t& other, int count);
@@ -201,12 +201,17 @@ public:
    * the given number of times while in the given state.
    * Unfortunately breaking more than once doesn't work right now; the
    * Pipe system_ids aren't stable across reconnects.
+   * Success here does not guarantee a socket will actually break,
+   * if the passed-in system_id does not correspond to an actual
+   * system ID.
    *
-   * @param other The entity whose socket to break.
-   * @param count The number of times to break the socket. BROKEN.
-   * @return -ENOENT if we can't find a Connection; otherwise 0 on success.
+   * @param system_id The system ID of the Pipe whose socket you want o break.
+   * @param count The number of times to break the socket. BROKEN -- pass 1.
+   * @param break_state Pointer to the State to break the socket in, or NULL
+   * for any state.
+   * @return -1 if the MessengerDriver is not running, or 0 for success.
    */
-  virtual int break_socket_in(const entity_inst_t& other, int count,
+  virtual int break_socket_in(long system_id, int count,
                               const State *state);
   /**
    * Register a new alert that this MessengerDriver should report when
@@ -215,6 +220,16 @@ public:
    * @param alert The StateAlert to register.
    */
   virtual void register_alert(StateAlert alert);
+  /**
+   * Register a new alert for the Messenger that MessengerDriver should
+   * trigger when it gets a state change that corresponds to this.
+   *
+   * @param alert The StateAlert to register.
+   * @param system The system this state goes with, as a const char *
+   * @param sysid The specific instance of the system this should trigger off.
+   */
+  virtual void register_msgr_alert(StateAlert alert, const char *system,
+                                   long sysid);
   /**
    * @} Orders
    */
@@ -270,6 +285,11 @@ protected:
    * distinguish between reader and writer breaking.
    */
   map<long, map<const State *, int> > sockets_to_break;
+
+  /**
+   * Report a new incoming Pipe to anybody waiting on such things.
+   */
+  void new_incoming(long id);
 };
 
 #endif /* MESSENGERDRIVER_H_ */
