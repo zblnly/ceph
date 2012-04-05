@@ -47,9 +47,6 @@ int send_test_message(TestDriver *driver, MDriver origin, MDriver dest)
 
   wait_until_complete(message_alert);
 
-  std::cerr << "received message " << *((MOSDOp*) message_alert->get_payload())
-                      << "\nafter sending\n" << *m << std::endl;
-
   // check that they match
   bool match = driver->message_contents_equal(m, (Message*)message_alert->get_payload());
   return (match? 0 : 1);
@@ -74,9 +71,6 @@ int send_test_message_with_break(TestDriver *driver, MDriver origin, MDriver des
   origin->send_message(m, dest->get_inst());
 
   wait_until_complete(message_alert);
-
-  std::cerr << "received message " << *((MOSDOp*) message_alert->get_payload())
-                      << "\nafter sending\n" << *m << std::endl;
 
   // check that they match
   bool match = driver->message_contents_equal(m, (Message*)message_alert->get_payload());
@@ -114,17 +108,57 @@ int test_broken_connection(TestDriver *driver, MDriver origin, MDriver dest)
   origin->send_message(unsent_m, dest->get_inst());
   wait_until_complete(reset_alert);
 
-  std::cerr << "got reset alert" << std::endl;
-
   origin->send_message(sent_m, dest->get_inst());
   wait_until_complete(message_alert);
-
-  std::cerr << "received message " << *((MOSDOp*) message_alert->get_payload())
-                      << "\nafter sending\n" << *sent_m << std::endl;
 
   // check that they match
   bool match = driver->message_contents_equal(sent_m, (Message*)message_alert->get_payload());
   return (match? 0 : 1);
+}
+
+int test_break_in_accept(TestDriver *driver)
+{
+  entity_name_t name = entity_name_t::OSD();
+  entity_addr_t empty_addr;
+  entity_inst_t entity(name, empty_addr);
+  MDriver msgr1 = driver->create_messenger(entity);
+  MDriver msgr2 = driver->create_messenger(entity);
+
+  // create an alert for when msgr2 first creates a Pipe for incoming Connections
+  const State *new_incoming_state =
+      driver->lookup_state(MESSENGER_DRIVER, MessengerDriver::new_incoming_connection);
+  StateAlert new_incoming_alert = driver->generate_alert(new_incoming_state);
+  // make the alerter block in the notification until we signal it to continue
+  new_incoming_alert->require_signal_to_resume();
+  msgr2->register_alert(new_incoming_alert);
+
+  // we want to break the socket once Pipe::accept is done.
+  // there's a state report for "accept::open" that's at the right place
+  // so we retrieve a reference to it
+  const State *accept_open_state =
+      driver->lookup_state("Pipe::reader", "accept::open");
+  // and we also want to make sure it actually breaks, which is
+  // a marked state too
+  const State *fail_unlocked_state =
+      driver->lookup_state("Pipe::reader", "accept::fail_unlocked");
+  StateAlert fail_unlocked_alert = driver->generate_alert(fail_unlocked_state);
+
+  // start a connection from msgr1 to msgr2
+  msgr1->establish_connection(msgr2->get_inst());
+  // wait for msgr2 to notice that it has an incoming connection
+  wait_until_complete(new_incoming_alert);
+  // get out the system id for the new Pipe
+  long new_pipe_id = (long) new_incoming_alert->get_payload();
+  // instruct msgr2 to break on socket syscalls once it reaches the
+  // "accept::open" state
+  msgr2->break_socket_in(new_pipe_id, 1, accept_open_state);
+  msgr2->register_msgr_alert(fail_unlocked_alert, "Pipe::reader", new_pipe_id);
+  new_incoming_alert->cond.SignalAll();
+  // and wait until we hit the fail_unlocked alert, since we should
+  wait_until_complete(fail_unlocked_alert);
+
+  // make sure the connection still works
+  return send_test_message(driver, msgr1, msgr2);
 }
 
 int sample_test(TestDriver *driver)
@@ -152,6 +186,12 @@ int sample_test(TestDriver *driver)
 
   std::cerr << "Sending message after breaking socket..." << std::endl;
   ret = send_test_message_with_break(driver, msgr1, msgr2);
+  if (ret)
+    goto shutdown;
+  std::cerr << "Success!" << std::endl;
+
+  std::cerr << "Sending message after breaking socket in accept..." << std::endl;
+  ret = test_break_in_accept(driver);
   if (ret)
     goto shutdown;
   std::cerr << "Success!" << std::endl;
