@@ -276,13 +276,11 @@ protected:
   Mutex lock;
   list<Message *> received_messages;
   vector<list<StateAlert> > my_alerts;
-  // TODO: messenger alerts should take into account the system_id they belong to.
-  /// subsystem -> [state_id, list]
-  map<string, map<int, list<StateAlert> > > messenger_alerts;
+  map<string, map<long, map<int, list<StateAlert> > > > messenger_alerts;
   /// subsystem -> [system_id, state]
   map<string, map<long, const State*> > messenger_states;
-  /** system_id of Pipes that we want to break. We can't currently
-   * distinguish between reader and writer breaking.
+  /** system_id of Pipes that we want to break, with the
+   * State to break them on (NULL for any).
    */
   map<long, map<const State *, int> > sockets_to_break;
 

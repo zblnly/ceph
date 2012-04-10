@@ -122,7 +122,7 @@ void MessengerDriver::register_msgr_alert(StateAlert alert, const char *system,
                                           long sysid)
 {
   lock.Lock();
-  messenger_alerts[system][alert->get_watched_state()->state_id].push_back(alert);
+  messenger_alerts[system][sysid][alert->get_watched_state()->state_id].push_back(alert);
   lock.Unlock();
 }
 
@@ -240,16 +240,19 @@ void MessengerDriver::report_state_changed(const char *system, long id, int stat
 
   set<StateAlert> alerts;
   // check for StateAlerts to activate
-  map<string, map<int, list<StateAlert> > >::iterator iter =
+  map<string, map<long, map<int, list<StateAlert> > > >::iterator system_iter =
       messenger_alerts.find(system);
-  if (iter != messenger_alerts.end()) {
-    map<int, list<StateAlert> >::iterator state_iter =
-        iter->second.find(state);
-    if (state_iter != iter->second.end()) {
-      list<StateAlert>::iterator alert_iter = state_iter->second.begin();
-      while (alert_iter != state_iter->second.end()) {
-        alerts.insert(*alert_iter);
-        state_iter->second.erase(alert_iter++);
+  if (system_iter != messenger_alerts.end()) {
+    map<long, map<int, list<StateAlert> > >::iterator iter = system_iter->second.find(id);
+    if (iter != system_iter->second.end()) {
+      map<int, list<StateAlert> >::iterator state_iter =
+          iter->second.find(state);
+      if (state_iter != iter->second.end()) {
+        list<StateAlert>::iterator alert_iter = state_iter->second.begin();
+        while (alert_iter != state_iter->second.end()) {
+          alerts.insert(*alert_iter);
+          state_iter->second.erase(alert_iter++);
+        }
       }
     }
   }
