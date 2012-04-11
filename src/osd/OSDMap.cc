@@ -1064,7 +1064,7 @@ void OSDMap::print_summary(ostream& out) const
     out << " nearfull";
 }
 
-void OSDMap::build_simple(CephContext *cct, epoch_t e, uuid_d &fsid,
+int OSDMap::build_simple(CephContext *cct, epoch_t e, uuid_d &fsid,
 			  int nosd, int pg_bits, int pgp_bits, int lpg_bits)
 {
   ldout(cct, 10) << "build_simple on " << num_osd
@@ -1104,16 +1104,20 @@ void OSDMap::build_simple(CephContext *cct, epoch_t e, uuid_d &fsid,
     pool_name[pool] = p->second;
   }
 
-  build_simple_crush_map(cct, crush, rulesets, nosd);
+  int r = build_simple_crush_map(cct, crush, rulesets, nosd);
+  if (r < 0)
+    return r;
 
   for (int i=0; i<nosd; i++) {
     set_state(i, 0);
     set_weight(i, CEPH_OSD_OUT);
   }
+
+  return 0;
 }
 
 
-void OSDMap::build_simple_crush_map(CephContext *cct, CrushWrapper& crush,
+int OSDMap::build_simple_crush_map(CephContext *cct, CrushWrapper& crush,
 				    map<int, const char*>& rulesets, int nosd)
 {
   const md_config_t *conf = cct->_conf;
@@ -1147,6 +1151,8 @@ void OSDMap::build_simple_crush_map(CephContext *cct, CrushWrapper& crush,
   for (map<int,const char*>::iterator p = rulesets.begin(); p != rulesets.end(); p++) {
     int ruleset = p->first;
     crush_rule *rule = crush_make_rule(3, ruleset, pg_pool_t::TYPE_REP, minrep, maxrep);
+    if (!rule)
+      return -ENOMEM;
     crush_rule_set_step(rule, 0, CRUSH_RULE_TAKE, rootid, 0);
     // just spread across osds
     crush_rule_set_step(rule, 1, CRUSH_RULE_CHOOSE_FIRSTN, CRUSH_CHOOSE_N, 0);
@@ -1155,7 +1161,10 @@ void OSDMap::build_simple_crush_map(CephContext *cct, CrushWrapper& crush,
     crush.set_rule_name(rno, p->second);
   }
 
-  crush.finalize();
+  if (!crush.finalize())
+    return -ENOMEM;
+
+  return 0;
 }
 
 void OSDMap::build_simple_from_conf(CephContext *cct, epoch_t e, uuid_d &fsid,

@@ -376,9 +376,9 @@ public:
     return crush_add_bucket(crush, bucketno, b);
   }
   
-  void finalize() {
+  int finalize() {
     assert(crush);
-    crush_finalize(crush);
+    return crush_finalize(crush);
   }
 
   void set_max_devices(int m) {

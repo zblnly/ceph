@@ -16,6 +16,8 @@ struct crush_map *crush_create()
 {
 	struct crush_map *m;
 	m = malloc(sizeof(*m));
+        if (!m)
+          return NULL;
 	memset(m, 0, sizeof(*m));
 	return m;
 }
@@ -23,7 +25,7 @@ struct crush_map *crush_create()
 /*
  * finalize should be called _after_ all buckets are added to the map.
  */
-void crush_finalize(struct crush_map *map)
+int crush_finalize(struct crush_map *map)
 {
 	int b;
 	__u32 i;
@@ -40,12 +42,17 @@ void crush_finalize(struct crush_map *map)
 
 	/* allocate arrays */
 	map->device_parents = malloc(sizeof(map->device_parents[0]) * map->max_devices);
+        if (!map->device_parents)
+          return -ENOMEM;
 	memset(map->device_parents, 0, sizeof(map->device_parents[0]) * map->max_devices);
 	map->bucket_parents = malloc(sizeof(map->bucket_parents[0]) * map->max_buckets);
+        if (!map->bucket_parents)
+          return -ENOMEM;
 	memset(map->bucket_parents, 0, sizeof(map->bucket_parents[0]) * map->max_buckets);
 
 	/* build parent maps */
 	crush_calc_parents(map);
+        return 0;
 }
 
 
@@ -85,6 +92,8 @@ struct crush_rule *crush_make_rule(int len, int ruleset, int type, int minsize, 
 {
 	struct crush_rule *rule;
 	rule = malloc(crush_rule_size(len));
+        if (!rule)
+          return NULL;
 	rule->len = len;
 	rule->mask.ruleset = ruleset;
 	rule->mask.type = type;
@@ -169,6 +178,8 @@ crush_make_uniform_bucket(int hash, int type, int size,
 	struct crush_bucket_uniform *bucket;
 
 	bucket = malloc(sizeof(*bucket));
+        if (!bucket)
+          return NULL;
 	memset(bucket, 0, sizeof(*bucket));
 	bucket->h.alg = CRUSH_BUCKET_UNIFORM;
 	bucket->h.hash = hash;
@@ -179,7 +190,11 @@ crush_make_uniform_bucket(int hash, int type, int size,
 	bucket->item_weight = item_weight;
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
+        if (!bucket->h.items)
+          return NULL;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
+        if (!bucket->h.perm)
+          return NULL;
 	for (i=0; i<size; i++)
 		bucket->h.items[i] = items[i];
 
@@ -199,6 +214,8 @@ crush_make_list_bucket(int hash, int type, int size,
 	struct crush_bucket_list *bucket;
 
 	bucket = malloc(sizeof(*bucket));
+        if (!bucket)
+          return NULL;
 	memset(bucket, 0, sizeof(*bucket));
 	bucket->h.alg = CRUSH_BUCKET_LIST;
 	bucket->h.hash = hash;
@@ -206,9 +223,17 @@ crush_make_list_bucket(int hash, int type, int size,
 	bucket->h.size = size;
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
+        if (!bucket->h.items)
+          return NULL;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
+        if (!bucket->h.perm)
+          return NULL;
 	bucket->item_weights = malloc(sizeof(__u32)*size);
+        if (!bucket->item_weights)
+          return NULL;
 	bucket->sum_weights = malloc(sizeof(__u32)*size);
+        if (!bucket->sum_weights)
+          return NULL;
 	w = 0;
 	for (i=0; i<size; i++) {
 		bucket->h.items[i] = items[i];
@@ -269,6 +294,8 @@ crush_make_tree_bucket(int hash, int type, int size,
 	int i, j;
 
 	bucket = malloc(sizeof(*bucket));
+        if (!bucket)
+          return NULL;
 	memset(bucket, 0, sizeof(*bucket));
 	bucket->h.alg = CRUSH_BUCKET_TREE;
 	bucket->h.hash = hash;
@@ -276,13 +303,19 @@ crush_make_tree_bucket(int hash, int type, int size,
 	bucket->h.size = size;
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
+        if (!bucket->h.items)
+          return NULL;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
+        if (!bucket->h.perm)
+          return NULL;
 
 	/* calc tree depth */
 	depth = calc_depth(size);
 	bucket->num_nodes = 1 << depth;
 	printf("size %d depth %d nodes %d\n", size, depth, bucket->num_nodes);
 	bucket->node_weights = malloc(sizeof(__u32)*bucket->num_nodes);
+        if (!bucket->node_weights)
+          return NULL;
 
 	memset(bucket->h.items, 0, sizeof(__u32)*bucket->h.size);
 	memset(bucket->node_weights, 0, sizeof(__u32)*bucket->num_nodes);
@@ -319,6 +352,8 @@ int crush_calc_straw(struct crush_bucket_straw *bucket)
 
 	/* reverse sort by weight (simple insertion sort) */
 	reverse = malloc(sizeof(int) * size);
+        if (!reverse)
+          return -ENOMEM;
 	if (size)
 		reverse[0] = 0;
 	for (i=1; i<size; i++) {
@@ -394,6 +429,8 @@ crush_make_straw_bucket(int hash,
 	int i;
 
 	bucket = malloc(sizeof(*bucket));
+        if (!bucket)
+          return NULL;
 	memset(bucket, 0, sizeof(*bucket));
 	bucket->h.alg = CRUSH_BUCKET_STRAW;
 	bucket->h.hash = hash;
@@ -401,9 +438,17 @@ crush_make_straw_bucket(int hash,
 	bucket->h.size = size;
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
+        if (!bucket->h.items)
+          return NULL;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
+        if (!bucket->h.perm)
+          return NULL;
 	bucket->item_weights = malloc(sizeof(__u32)*size);
+        if (!bucket->item_weights)
+          return NULL;
 	bucket->straws = malloc(sizeof(__u32)*size);
+        if (!bucket->straws)
+          return NULL;
 
 	bucket->h.weight = 0;
 	for (i=0; i<size; i++) {

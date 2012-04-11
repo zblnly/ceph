@@ -4,7 +4,7 @@
 #include "crush.h"
 
 extern struct crush_map *crush_create();
-extern void crush_finalize(struct crush_map *map);
+extern int crush_finalize(struct crush_map *map);
 
 /* rules */
 extern struct crush_rule *crush_make_rule(int len, int ruleset, int type, int minsize, int maxsize);
