@@ -1104,9 +1104,7 @@ int OSDMap::build_simple(CephContext *cct, epoch_t e, uuid_d &fsid,
     pool_name[pool] = p->second;
   }
 
-  int r = build_simple_crush_map(cct, crush, rulesets, nosd);
-  if (r < 0)
-    return r;
+  build_simple_crush_map(cct, crush, rulesets, nosd);
 
   for (int i=0; i<nosd; i++) {
     set_state(i, 0);
@@ -1161,8 +1159,7 @@ int OSDMap::build_simple_crush_map(CephContext *cct, CrushWrapper& crush,
     crush.set_rule_name(rno, p->second);
   }
 
-  if (!crush.finalize())
-    return -ENOMEM;
+  crush.finalize();
 
   return 0;
 }
@@ -1296,6 +1293,7 @@ void OSDMap::build_simple_crush_map_from_conf(CephContext *cct, CrushWrapper& cr
   for (map<int,const char*>::iterator p = rulesets.begin(); p != rulesets.end(); p++) {
     int ruleset = p->first;
     crush_rule *rule = crush_make_rule(3, ruleset, pg_pool_t::TYPE_REP, minrep, maxrep);
+    assert(rule);
     crush_rule_set_step(rule, 0, CRUSH_RULE_TAKE, rootid, 0);
 
     if (racks.size() > 3) {

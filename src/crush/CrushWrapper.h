@@ -86,6 +86,7 @@ public:
     if (crush)
       crush_destroy(crush);
     crush = crush_create();
+    assert(crush);
   }
 
   // bucket types
@@ -253,6 +254,7 @@ public:
   int add_rule(int len, int ruleset, int type, int minsize, int maxsize, int ruleno) {
     if (!crush) return -ENOENT;
     crush_rule *n = crush_make_rule(len, ruleset, type, minsize, maxsize);
+    assert(n);
     ruleno = crush_add_rule(crush, n, ruleno);
     return ruleno;
   }
@@ -373,12 +375,14 @@ public:
   int add_bucket(int bucketno, int alg, int hash, int type, int size,
 		 int *items, int *weights) {
     crush_bucket *b = crush_make_bucket(alg, hash, type, size, items, weights);
+    assert(b);
     return crush_add_bucket(crush, bucketno, b);
   }
   
-  int finalize() {
+  void finalize() {
     assert(crush);
-    return crush_finalize(crush);
+    int r = crush_finalize(crush);
+    assert (!r);
   }
 
   void set_max_devices(int m) {

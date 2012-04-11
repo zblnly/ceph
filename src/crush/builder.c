@@ -46,8 +46,10 @@ int crush_finalize(struct crush_map *map)
           return -ENOMEM;
 	memset(map->device_parents, 0, sizeof(map->device_parents[0]) * map->max_devices);
 	map->bucket_parents = malloc(sizeof(map->bucket_parents[0]) * map->max_buckets);
-        if (!map->bucket_parents)
+        if (!map->bucket_parents) {
+          free(map->device_parents);
           return -ENOMEM;
+        }
 	memset(map->bucket_parents, 0, sizeof(map->bucket_parents[0]) * map->max_buckets);
 
 	/* build parent maps */
@@ -191,14 +193,19 @@ crush_make_uniform_bucket(int hash, int type, int size,
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
         if (!bucket->h.items)
-          return NULL;
+          goto err;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
         if (!bucket->h.perm)
-          return NULL;
+          goto err;
 	for (i=0; i<size; i++)
 		bucket->h.items[i] = items[i];
 
 	return bucket;
+err:
+        free(bucket->h.perm);
+        free(bucket->h.items);
+        free(bucket);
+        return NULL;
 }
 
 
@@ -224,16 +231,16 @@ crush_make_list_bucket(int hash, int type, int size,
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
         if (!bucket->h.items)
-          return NULL;
+          goto err;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
         if (!bucket->h.perm)
-          return NULL;
+          goto err;
 	bucket->item_weights = malloc(sizeof(__u32)*size);
         if (!bucket->item_weights)
-          return NULL;
+          goto err;
 	bucket->sum_weights = malloc(sizeof(__u32)*size);
         if (!bucket->sum_weights)
-          return NULL;
+          goto err;
 	w = 0;
 	for (i=0; i<size; i++) {
 		bucket->h.items[i] = items[i];
@@ -247,6 +254,13 @@ crush_make_list_bucket(int hash, int type, int size,
 	bucket->h.weight = w;
 
 	return bucket;
+err:
+        free(bucket->sum_weights);
+        free(bucket->item_weights);
+        free(bucket->h.perm);
+        free(bucket->h.items);
+        free(bucket);
+        return NULL;
 }
 
 
@@ -304,10 +318,10 @@ crush_make_tree_bucket(int hash, int type, int size,
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
         if (!bucket->h.items)
-          return NULL;
+          goto err;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
         if (!bucket->h.perm)
-          return NULL;
+          goto err;
 
 	/* calc tree depth */
 	depth = calc_depth(size);
@@ -315,7 +329,7 @@ crush_make_tree_bucket(int hash, int type, int size,
 	printf("size %d depth %d nodes %d\n", size, depth, bucket->num_nodes);
 	bucket->node_weights = malloc(sizeof(__u32)*bucket->num_nodes);
         if (!bucket->node_weights)
-          return NULL;
+          goto err;
 
 	memset(bucket->h.items, 0, sizeof(__u32)*bucket->h.size);
 	memset(bucket->node_weights, 0, sizeof(__u32)*bucket->num_nodes);
@@ -335,6 +349,12 @@ crush_make_tree_bucket(int hash, int type, int size,
 	BUG_ON(bucket->node_weights[bucket->num_nodes/2] != bucket->h.weight);
 
 	return bucket;
+err:
+        free(bucket->node_weights);
+        free(bucket->h.perm);
+        free(bucket->h.items);
+        free(bucket);
+        return NULL;
 }
 
 
@@ -439,16 +459,16 @@ crush_make_straw_bucket(int hash,
 
 	bucket->h.items = malloc(sizeof(__u32)*size);
         if (!bucket->h.items)
-          return NULL;
+          goto err;
 	bucket->h.perm = malloc(sizeof(__u32)*size);
         if (!bucket->h.perm)
-          return NULL;
+          goto err;
 	bucket->item_weights = malloc(sizeof(__u32)*size);
         if (!bucket->item_weights)
-          return NULL;
+          goto err;
 	bucket->straws = malloc(sizeof(__u32)*size);
         if (!bucket->straws)
-          return NULL;
+          goto err;
 
 	bucket->h.weight = 0;
 	for (i=0; i<size; i++) {
@@ -457,9 +477,17 @@ crush_make_straw_bucket(int hash,
 		bucket->item_weights[i] = weights[i];
 	}
 
-	crush_calc_straw(bucket);
+	if (crush_calc_straw(bucket) < 0)
+          goto err;
 
 	return bucket;
+err:
+        free(bucket->straws);
+        free(bucket->item_weights);
+        free(bucket->h.perm);
+        free(bucket->h.items);
+        free(bucket);
+        return NULL;
 }
 
 
@@ -813,6 +841,7 @@ int crush_adjust_straw_bucket_item_weight(struct crush_bucket_straw *bucket, int
 {
 	unsigned idx;
 	int diff;
+        int r;
 
 	for (idx = 0; idx < bucket->h.size; idx++)
 		if (bucket->h.items[idx] == item)
@@ -824,7 +853,9 @@ int crush_adjust_straw_bucket_item_weight(struct crush_bucket_straw *bucket, int
 	bucket->item_weights[idx] = weight;
 	bucket->h.weight += diff;
 
-	crush_calc_straw(bucket);
+	r = crush_calc_straw(bucket);
+        if (r < 0)
+          return r;
 
 	return diff;
 }
