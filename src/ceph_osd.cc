@@ -45,6 +45,8 @@ using namespace std;
 
 #include "perfglue/heap_profiler.h"
 
+#define dout_subsys ceph_subsys_osd
+
 OSD *osd = NULL;
 
 void handle_osd_signal(int signum)
@@ -368,9 +370,12 @@ int main(int argc, const char **argv)
     exit(1);
 
   // hb should bind to same ip as cluster_addr (if specified)
-  entity_addr_t hb_addr = g_conf->cluster_addr;
-  if (!hb_addr.is_blank_ip())
-    hb_addr.set_port(0);
+  entity_addr_t hb_addr = g_conf->osd_heartbeat_addr;
+  if (hb_addr.is_blank_ip()) {
+    hb_addr = g_conf->cluster_addr;
+    if (hb_addr.is_ip())
+      hb_addr.set_port(0);
+  }
   r = messenger_hbserver->bind(hb_addr);
   if (r < 0)
     exit(1);

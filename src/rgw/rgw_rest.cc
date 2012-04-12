@@ -19,8 +19,7 @@
 # include "fcgiapp.h"
 #endif
 
-
-#define DOUT_SUBSYS rgw
+#define dout_subsys ceph_subsys_rgw
 
 static void dump_status(struct req_state *s, const char *status)
 {
@@ -556,7 +555,7 @@ static int init_entities_from_header(struct req_state *s)
     s->bucket_name_str = first;
     s->bucket_name = strdup(s->bucket_name_str.c_str());
   } else {
-    s->object_str = first;
+    s->object_str = req_name;
     s->object = strdup(s->object_str.c_str());
     goto done;
   }

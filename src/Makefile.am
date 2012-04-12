@@ -118,7 +118,10 @@ osdmaptool_SOURCES = osdmaptool.cc
 osdmaptool_LDADD = $(LIBGLOBAL_LDA)
 bin_PROGRAMS += monmaptool crushtool osdmaptool
 
-ceph_dencoder_SOURCES = test/encoding/ceph_dencoder.cc
+rgw_dencoder_src = rgw/rgw_dencoder.cc \
+                   rgw/rgw_acl.cc
+
+ceph_dencoder_SOURCES = test/encoding/ceph_dencoder.cc ${rgw_dencoder_src}
 ceph_dencoder_CXXFLAGS = ${CRYPTO_CXXFLAGS} ${AM_CXXFLAGS}
 ceph_dencoder_LDADD = $(LIBGLOBAL_LDA) libosd.la libmds.a libos.la libmon.la
 bin_PROGRAMS += ceph-dencoder
@@ -278,10 +281,6 @@ testtimers_SOURCES = test/TestTimers.cc
 testtimers_LDADD = $(LIBGLOBAL_LDA)
 bin_DEBUGPROGRAMS += testtimers
 
-testdout_streambuf_SOURCES = test/TestDoutStreambuf.cc
-testdout_streambuf_LDADD = $(LIBGLOBAL_LDA)
-bin_DEBUGPROGRAMS += testdout_streambuf
-
 testsignal_handlers_SOURCES = test/TestSignalHandlers.cc
 testsignal_handlers_LDADD = $(LIBGLOBAL_LDA)
 bin_DEBUGPROGRAMS += testsignal_handlers
@@ -382,8 +381,6 @@ rgw_multiparser_CXXFLAGS = ${CRYPTO_CXXFLAGS} ${AM_CXXFLAGS}
 rgw_multiparser_LDADD = $(my_radosgw_ldadd)
 bin_DEBUGPROGRAMS += rgw_multiparser
 
-ceph_dencoder_LDADD += $(my_radosgw_ldadd)
-
 endif
 
 testcrypto_SOURCES = testcrypto.cc
@@ -477,6 +474,11 @@ testrados_watch_notify_SOURCES = \
 testrados_watch_notify_LDADD = libsystest.la librados.la
 bin_DEBUGPROGRAMS += testrados_watch_notify
 
+bench_log_SOURCES = \
+	test/bench_log.cc
+bench_log_LDADD = libcommon.la libglobal.la $(PTHREAD_LIBS) -lm $(CRYPTO_LIBS) $(EXTRALIBS)
+bin_DEBUGPROGRAMS += bench_log
+
 ## unit tests
 
 # target to build but not run the unit tests
@@ -506,11 +508,21 @@ unittest_addrs_CXXFLAGS = ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS}
 unittest_addrs_LDADD = libglobal.la $(PTHREAD_LIBS) -lm ${UNITTEST_LDADD} $(CRYPTO_LIBS) $(EXTRALIBS)
 check_PROGRAMS += unittest_addrs
 
+unittest_prebufferedstreambuf_SOURCES = test/test_prebufferedstreambuf.cc common/PrebufferedStreambuf.cc
+unittest_prebufferedstreambuf_CXXFLAGS = ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS}
+unittest_prebufferedstreambuf_LDADD = ${UNITTEST_LDADD} $(EXTRALIBS)
+check_PROGRAMS += unittest_prebufferedstreambuf
+
 unittest_str_list_SOURCES = test/test_str_list.cc
 unittest_str_list_CXXFLAGS = ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS}
 unittest_str_list_LDADD = libglobal.la $(PTHREAD_LIBS) -lm ${UNITTEST_LDADD} $(CRYPTO_LIBS) $(EXTRALIBS)
 check_PROGRAMS += unittest_str_list
 
+unittest_log_SOURCES = log/test.cc common/PrebufferedStreambuf.cc
+unittest_log_LDFLAGS = $(PTHREAD_CFLAGS) ${AM_LDFLAGS}
+unittest_log_LDADD = libcommon.la ${UNITTEST_LDADD}
+unittest_log_CXXFLAGS = ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS} -O2
+check_PROGRAMS += unittest_log
 
 unittest_base64_SOURCES = test/base64.cc
 unittest_base64_LDFLAGS = $(PTHREAD_CFLAGS) ${AM_LDFLAGS}
@@ -637,6 +649,12 @@ unittest_librados_config_LDFLAGS = $(PTHREAD_CFLAGS) ${AM_LDFLAGS}
 unittest_librados_config_LDADD =  librados.la ${UNITTEST_LDADD}
 unittest_librados_config_CXXFLAGS = ${CRYPTO_CFLAGS} ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS}
 check_PROGRAMS += unittest_librados_config
+
+unittest_librgw_link_SOURCES = test/librgw_link.cc
+unittest_librgw_link_LDFLAGS = $(PTHREAD_CFLAGS) ${AM_LDFLAGS}
+unittest_librgw_link_LDADD =  librgw.la ${UNITTEST_LDADD}
+unittest_librgw_link_CXXFLAGS = ${CRYPTO_CFLAGS} ${AM_CXXFLAGS} ${UNITTEST_CXXFLAGS}
+check_PROGRAMS += unittest_librgw_link
 
 unittest_daemon_config_SOURCES = test/daemon_config.cc
 unittest_daemon_config_LDFLAGS = $(PTHREAD_CFLAGS) ${AM_LDFLAGS}
@@ -940,6 +958,7 @@ libcommon_files = \
 	auth/RotatingKeyRing.cc \
 	common/LogClient.cc \
 	common/LogEntry.cc \
+	common/PrebufferedStreambuf.cc \
 	common/BackTrace.cc \
 	common/perf_counters.cc \
 	common/admin_socket.cc \
@@ -964,6 +983,7 @@ libcommon_files = \
 	json_spirit/json_spirit_reader.cpp \
 	json_spirit/json_spirit_writer.cpp \
 	json_spirit/json_spirit_value.cpp \
+	log/Log.cc \
 	mon/MonCaps.cc \
 	mon/MonClient.cc \
 	mon/MonMap.cc \
@@ -982,6 +1002,7 @@ libcommon_files = \
 	common/ceph_context.cc \
 	common/buffer.cc \
 	common/code_environment.cc \
+	common/dout.cc \
 	common/signal.cc \
 	common/simple_spin.cc \
 	common/Thread.cc \
@@ -997,7 +1018,6 @@ libcommon_files = \
 	common/strtol.cc \
 	common/page.cc \
 	common/lockdep.cc \
-	common/DoutStreambuf.cc \
 	common/version.cc \
 	common/hex.cc \
 	common/entity_name.cc \
@@ -1161,7 +1181,6 @@ noinst_HEADERS = \
 	cls_acl.cc\
 	cls_crypto.cc\
 	common/BackTrace.h\
-	common/DoutStreambuf.h\
 	common/HeartbeatMap.h\
 	common/LogClient.h\
 	common/LogEntry.h\
@@ -1192,6 +1211,7 @@ noinst_HEADERS = \
 	common/admin_socket_client.h \
         common/MemoryModel.h\
         common/Mutex.h\
+	common/PrebufferedStreambuf.h\
         common/RWLock.h\
         common/Semaphore.h\
         common/Thread.h\
@@ -1304,6 +1324,10 @@ noinst_HEADERS = \
 	json_spirit/json_spirit_writer.h\
 	json_spirit/json_spirit_writer_options.h\
 	json_spirit/json_spirit_writer_template.h\
+	log/Entry.h\
+	log/EntryQueue.h\
+	log/Log.h\
+	log/SubsystemMap.h\
 	mds/inode_backtrace.h\
 	mds/flock.h\
 	mds/locks.c\

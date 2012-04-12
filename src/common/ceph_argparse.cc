@@ -186,7 +186,7 @@ bool ceph_argparse_flag(std::vector<const char*> &args,
 
 static bool va_ceph_argparse_binary_flag(std::vector<const char*> &args,
 	std::vector<const char*>::iterator &i, int *ret,
-	std::ostringstream *oss, va_list ap)
+	std::ostream *oss, va_list ap)
 {
   const char *first = *i;
   char tmp[strlen(first)+1];
@@ -233,7 +233,7 @@ static bool va_ceph_argparse_binary_flag(std::vector<const char*> &args,
 
 bool ceph_argparse_binary_flag(std::vector<const char*> &args,
 	std::vector<const char*>::iterator &i, int *ret,
-	std::ostringstream *oss, ...)
+	std::ostream *oss, ...)
 {
   bool r;
   va_list ap;
@@ -295,7 +295,7 @@ bool ceph_argparse_witharg(std::vector<const char*> &args,
 
 bool ceph_argparse_withint(std::vector<const char*> &args,
 	std::vector<const char*>::iterator &i, int *ret,
-	std::ostringstream *oss, ...)
+	std::ostream *oss, ...)
 {
   bool r;
   va_list ap;
@@ -318,7 +318,7 @@ bool ceph_argparse_withint(std::vector<const char*> &args,
 
 bool ceph_argparse_withlonglong(std::vector<const char*> &args,
 	std::vector<const char*>::iterator &i, long long *ret,
-	std::ostringstream *oss, ...)
+	std::ostream *oss, ...)
 {
   bool r;
   va_list ap;
@@ -341,7 +341,7 @@ bool ceph_argparse_withlonglong(std::vector<const char*> &args,
 
 CephInitParameters ceph_argparse_early_args
 	  (std::vector<const char*>& args, uint32_t module_type, int flags,
-	   std::string *conf_file_list)
+	   std::string *cluster, std::string *conf_file_list)
 {
   CephInitParameters iparams(module_type);
   std::string val;
@@ -358,6 +358,9 @@ CephInitParameters ceph_argparse_early_args
     }
     else if (ceph_argparse_witharg(args, i, &val, "--conf", "-c", (char*)NULL)) {
       *conf_file_list = val;
+    }
+    else if (ceph_argparse_witharg(args, i, &val, "--cluster", "-C", (char*)NULL)) {
+      *cluster = val;
     }
     else if ((module_type != CEPH_ENTITY_TYPE_CLIENT) &&
 	     (ceph_argparse_witharg(args, i, &val, "-i", (char*)NULL))) {

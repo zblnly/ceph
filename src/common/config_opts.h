@@ -14,7 +14,7 @@
 
 /* note: no header guard */
 OPTION(host, OPT_STR, "localhost")
-OPTION(fsid, OPT_STR, "")              // used for mkfs
+OPTION(fsid, OPT_UUID, uuid_d())
 OPTION(public_addr, OPT_ADDR, entity_addr_t())
 OPTION(cluster_addr, OPT_ADDR, entity_addr_t())
 OPTION(public_network, OPT_STR, "")
@@ -26,51 +26,54 @@ OPTION(daemonize, OPT_BOOL, false)
 OPTION(lockdep, OPT_BOOL, false)
 OPTION(admin_socket, OPT_STR, "")
 OPTION(log_file, OPT_STR, "")
-OPTION(log_sym_dir, OPT_STR, "")
-OPTION(log_sym_history, OPT_INT, 10)
+OPTION(log_max_new, OPT_INT, 1000)
+OPTION(log_max_recent, OPT_INT, 1000000)
 OPTION(log_to_stderr, OPT_BOOL, true)
 OPTION(err_to_stderr, OPT_BOOL, true)
 OPTION(log_to_syslog, OPT_BOOL, false)
-OPTION(log_per_instance, OPT_BOOL, false)
+OPTION(err_to_syslog, OPT_BOOL, false)
 OPTION(clog_to_monitors, OPT_BOOL, true)
 OPTION(clog_to_syslog, OPT_BOOL, false)
 OPTION(pid_file, OPT_STR, "")
 OPTION(chdir, OPT_STR, "/")
 OPTION(max_open_files, OPT_LONGLONG, 0)
-OPTION(debug, OPT_INT, 0)
-OPTION(debug_lockdep, OPT_INT, 0)
-OPTION(debug_context, OPT_INT, 0)
-OPTION(debug_crush, OPT_INT, 1)
-OPTION(debug_mds, OPT_INT, 1)
-OPTION(debug_mds_balancer, OPT_INT, 1)
-OPTION(debug_mds_locker, OPT_INT, 1)
-OPTION(debug_mds_log, OPT_INT, 1)
-OPTION(debug_mds_log_expire, OPT_INT, 1)
-OPTION(debug_mds_migrator, OPT_INT, 1)
-OPTION(debug_buffer, OPT_INT, 0)
-OPTION(debug_timer, OPT_INT, 0)
-OPTION(debug_filer, OPT_INT, 0)
-OPTION(debug_objecter, OPT_INT, 0)
-OPTION(debug_rados, OPT_INT, 0)
-OPTION(debug_rbd, OPT_INT, 0)
-OPTION(debug_journaler, OPT_INT, 0)
-OPTION(debug_objectcacher, OPT_INT, 0)
-OPTION(debug_client, OPT_INT, 0)
-OPTION(debug_osd, OPT_INT, 0)
-OPTION(debug_optracker, OPT_INT, 10)
-OPTION(debug_objclass, OPT_INT, 0)
-OPTION(debug_filestore, OPT_INT, 1)
-OPTION(debug_journal, OPT_INT, 1)
-OPTION(debug_bdev, OPT_INT, 1)         // block device
-OPTION(debug_ms, OPT_INT, 0)
-OPTION(debug_mon, OPT_INT, 1)
-OPTION(debug_monc, OPT_INT, 0)
-OPTION(debug_paxos, OPT_INT, 0)
-OPTION(debug_tp, OPT_INT, 0)
-OPTION(debug_auth, OPT_INT, 1)
-OPTION(debug_finisher, OPT_INT, 1)
-OPTION(debug_heartbeatmap, OPT_INT, 1)
-OPTION(debug_perfcounter, OPT_INT, 1)
+
+DEFAULT_SUBSYS(0, 5)
+SUBSYS(lockdep, 0, 5)
+SUBSYS(context, 0, 5)
+SUBSYS(crush, 1, 5)
+SUBSYS(mds, 1, 5)
+SUBSYS(mds_balancer, 1, 5)
+SUBSYS(mds_locker, 1, 5)
+SUBSYS(mds_log, 1, 5)
+SUBSYS(mds_log_expire, 1, 5)
+SUBSYS(mds_migrator, 1, 5)
+SUBSYS(buffer, 0, 0)
+SUBSYS(timer, 0, 5)
+SUBSYS(filer, 0, 5)
+SUBSYS(objecter, 0, 0)
+SUBSYS(rados, 0, 5)
+SUBSYS(rbd, 0, 5)
+SUBSYS(journaler, 0, 5)
+SUBSYS(objectcacher, 0, 5)
+SUBSYS(client, 0, 5)
+SUBSYS(osd, 0, 5)
+SUBSYS(optracker, 0, 5)
+SUBSYS(objclass, 0, 5)
+SUBSYS(filestore, 1, 5)
+SUBSYS(journal, 1, 5)
+SUBSYS(ms, 0, 5)
+SUBSYS(mon, 1, 5)
+SUBSYS(monc, 0, 5)
+SUBSYS(paxos, 0, 5)
+SUBSYS(tp, 0, 5)
+SUBSYS(auth, 1, 5)
+SUBSYS(finisher, 1, 5)
+SUBSYS(heartbeatmap, 1, 5)
+SUBSYS(perfcounter, 1, 5)
+SUBSYS(rgw, 1, 5)                 // log level for the Rados gateway
+SUBSYS(hadoop, 1, 5)
+
 OPTION(key, OPT_STR, "")
 OPTION(keyfile, OPT_STR, "")
 OPTION(keyring, OPT_STR, "/etc/ceph/keyring,/etc/ceph/keyring.bin")
@@ -252,7 +255,7 @@ OPTION(osd_client_message_size_cap, OPT_U64, 500*1024L*1024L) // default to 200M
 OPTION(osd_stat_refresh_interval, OPT_DOUBLE, .5)
 OPTION(osd_pg_bits, OPT_INT, 6)  // bits per osd
 OPTION(osd_pgp_bits, OPT_INT, 6)  // bits per osd
-OPTION(osd_lpg_bits, OPT_INT, 2)  // bits per osd
+OPTION(osd_lpg_bits, OPT_INT, 0)  // bits per osd
 OPTION(osd_pg_layout, OPT_INT, CEPH_PG_LAYOUT_CRUSH)
 OPTION(osd_min_rep, OPT_INT, 1)
 OPTION(osd_max_rep, OPT_INT, 10)
@@ -267,7 +270,7 @@ OPTION(osd_map_message_max, OPT_INT, 100)  // max maps per MOSDMap message
 OPTION(osd_op_threads, OPT_INT, 2)    // 0 == no threading
 OPTION(osd_disk_threads, OPT_INT, 1)
 OPTION(osd_recovery_threads, OPT_INT, 1)
-OPTION(osd_recover_clone_overlap, OPT_BOOL, false)   // preserve clone_overlap during recovery/migration
+OPTION(osd_recover_clone_overlap, OPT_BOOL, true)   // preserve clone_overlap during recovery/migration
 OPTION(osd_backfill_scan_min, OPT_INT, 64)
 OPTION(osd_backfill_scan_max, OPT_INT, 512)
 OPTION(osd_op_thread_timeout, OPT_INT, 30)
@@ -280,6 +283,7 @@ OPTION(osd_remove_thread_timeout, OPT_INT, 60*60)
 OPTION(osd_command_thread_timeout, OPT_INT, 10*60)
 OPTION(osd_age, OPT_FLOAT, .8)
 OPTION(osd_age_time, OPT_INT, 0)
+OPTION(osd_heartbeat_addr, OPT_ADDR, entity_addr_t())
 OPTION(osd_heartbeat_interval, OPT_INT, 6)       // (seconds) how often we ping peers
 OPTION(osd_heartbeat_grace, OPT_INT, 20)         // (seconds) how long before we decide a peer has failed
 OPTION(osd_mon_heartbeat_interval, OPT_INT, 30)  // (seconds) how often to ping monitor if no peers
@@ -347,6 +351,7 @@ OPTION(filestore_merge_threshold, OPT_INT, 10)
 OPTION(filestore_split_multiple, OPT_INT, 2)
 OPTION(filestore_update_collections, OPT_BOOL, false)
 OPTION(filestore_blackhole, OPT_BOOL, false)     // drop any new transactions on the floor
+OPTION(filestore_dump_file, OPT_STR, "")         // file onto which store transaction dumps
 OPTION(journal_dio, OPT_BOOL, true)
 OPTION(journal_aio, OPT_BOOL, false)
 OPTION(journal_block_align, OPT_BOOL, true)
@@ -357,17 +362,6 @@ OPTION(journal_queue_max_bytes, OPT_INT, 100 << 20)
 OPTION(journal_align_min_size, OPT_INT, 64 << 10)  // align data payloads >= this.
 OPTION(journal_replay_from, OPT_INT, 0)
 OPTION(journal_zero_on_create, OPT_BOOL, false)
-OPTION(bdev_lock, OPT_BOOL, true)
-OPTION(bdev_iothreads, OPT_INT, 1)         // number of ios to queue with kernel
-OPTION(bdev_idle_kick_after_ms, OPT_INT, 100)  // ms
-OPTION(bdev_el_fw_max_ms, OPT_INT, 10000)      // restart elevator at least once every 1000 ms
-OPTION(bdev_el_bw_max_ms, OPT_INT, 3000)       // restart elevator at least once every 300 ms
-OPTION(bdev_el_bidir, OPT_BOOL, false)          // bidirectional elevator?
-OPTION(bdev_iov_max, OPT_INT, 512)            // max # iov's to collect into a single readv()/writev() call
-OPTION(bdev_debug_check_io_overlap, OPT_BOOL, true)  // [DEBUG] check for any pending io overlaps
-OPTION(bdev_fake_mb, OPT_INT, 0)
-OPTION(bdev_fake_max_mb, OPT_INT, 0)
-OPTION(debug_rgw, OPT_INT, 1)                 // log level for the Rados gateway
 OPTION(rgw_cache_enabled, OPT_BOOL, true)   // rgw cache enabled
 OPTION(rgw_cache_lru_size, OPT_INT, 10000)   // num of entries in rgw cache
 OPTION(rgw_socket_path, OPT_STR, "")   // path to unix domain socket, if not specified, rgw will not run as external fcgi

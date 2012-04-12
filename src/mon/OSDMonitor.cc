@@ -45,7 +45,7 @@
 
 #include <sstream>
 
-#define DOUT_SUBSYS mon
+#define dout_subsys ceph_subsys_mon
 #undef dout_prefix
 #define dout_prefix _prefix(_dout, mon, osdmap)
 static ostream& _prefix(std::ostream *_dout, Monitor *mon, OSDMap& osdmap) {
@@ -2071,9 +2071,7 @@ bool OSDMonitor::prepare_command(MMonCommand *m)
 		return true;
 	      }
 	    } else if (m->cmd[4] == "pgp_num") {
-	      if (n <= p->get_pgp_num()) {
-		ss << "specified pgp_num " << n << " <= current " << p->get_pgp_num();
-	      } else if (n > p->get_pg_num()) {
+	      if (n > p->get_pg_num()) {
 		ss << "specified pgp_num " << n << " > pg_num " << p->get_pg_num();
 	      } else if (!mon->pgmon()->pg_map.creating_pgs.empty()) {
 		ss << "still creating pgs, wait";
