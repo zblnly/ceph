@@ -2017,7 +2017,7 @@ bool OSDMonitor::prepare_command(MMonCommand *m)
 	  return true;
 	}
       } else if (m->cmd[2] == "set") {
-	if (m->cmd.size() != 6) {
+	if (m->cmd.size() < 6) {
 	  err = -EINVAL;
 	  ss << "usage: osd pool set <poolname> <field> <value>";
 	  goto out;
@@ -2050,9 +2050,10 @@ bool OSDMonitor::prepare_command(MMonCommand *m)
 	      paxos->wait_for_commit(new Monitor::C_Command(mon, m, 0, rs, paxos->get_version()));
 	      return true;
 	    } else if (m->cmd[4] == "pg_num") {
-	      if (true) {
-		// ** DISABLE THIS FOR NOW **
-		ss << "pg_num adjustment currently disabled (broken implementation)";
+              // ** DISABLE THIS FOR NOW **
+	      if (m->cmd.size() < 7 || m->cmd[6] != "--a-dev-told-me-to") {
+		ss << "pg_num adjustment currently disabled (broken implementation);"
+		    " if you were TOLD to do this add --a-dev-told-me-to";
 		// ** DISABLE THIS FOR NOW **
 	      } else
 	      if (n <= p->get_pg_num()) {
