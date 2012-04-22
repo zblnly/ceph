@@ -308,7 +308,9 @@ endif
 
 # librbd
 librbd_la_SOURCES = \
-	librbd.cc \
+	librbd/librbd.cc \
+	librbd/ImageCtx.cc \
+	librbd/WatchCtx.cc \
 	librbd/LibrbdWriteback.cc \
 	osdc/ObjectCacher.cc
 librbd_la_CFLAGS = ${AM_CFLAGS}
@@ -1331,7 +1333,11 @@ noinst_HEADERS = \
 	librados/IoCtxImpl.h\
 	librados/PoolAsyncCompletionImpl.h\
 	librados/RadosClient.h\
+	librbd/AioCompletion.h\
+	librbd/ImageCtx.h\
 	librbd/LibrbdWriteback.h\
+	librbd/SnapInfo.h\
+	librbd/WatchCtx.h\
 	logrotate.conf\
 	json_spirit/json_spirit.h\
 	json_spirit/json_spirit_error_position.h\
