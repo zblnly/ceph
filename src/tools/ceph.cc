@@ -188,7 +188,12 @@ int main(int argc, const char **argv)
   env_to_vec(args);
 
   // initialize globals
-  global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
+  bool have_mon_addr = false;
+  for (vector<const char*>::iterator i = args.begin(); i != args.end(); ++i)
+    if (memcmp(*i, "-m", 2) == 0)
+      have_mon_addr = true;
+  global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY,
+              have_mon_addr? CINIT_FLAG_NO_DEFAULT_CONFIG_FILE : 0);
   common_init_finish(g_ceph_context);
 
   // parse user input
