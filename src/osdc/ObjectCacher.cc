@@ -1050,7 +1050,10 @@ int ObjectCacher::_readx(OSDRead *rd, ObjectSet *oset, Context *onfinish,
   delete rd;
 
   trim();
-  
+
+  if (pos > (uint64_t)INT_MAX)
+    pos = INT_MAX;
+
   return pos;
 }
 
