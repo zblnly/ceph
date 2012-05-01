@@ -102,16 +102,17 @@ class ObjectCacher {
     tid_t last_write_tid;  // version of bh (if non-zero)
     utime_t last_write;
     SnapContext snapc;
+    int error; // holds return value for failed I/O
     
     map< loff_t, list<Context*> > waitfor_read;
     
-  public:
     // cons
     BufferHead(Object *o) : 
       state(STATE_MISSING),
       ref(0),
       ob(o),
-      last_write_tid(0) {}
+      last_write_tid(0),
+      error(0) {}
   
     // extent
     loff_t start() const { return ex.start; }
@@ -156,6 +157,8 @@ class ObjectCacher {
     // ObjectCacher::Object fields
     ObjectCacher *oc;
     sobject_t oid;
+    int write_error;
+    int num_error_bh;
     friend class ObjectSet;
 
   public:
@@ -196,7 +199,7 @@ class ObjectCacher {
 
     Object(ObjectCacher *_oc, sobject_t o, ObjectSet *os, object_locator_t& l) : 
       oc(_oc),
-      oid(o), oset(os), set_item(this), oloc(l),
+      oid(o), write_error(0), num_error_bh(0), oset(os), set_item(this), oloc(l),
       last_write_tid(0), last_commit_tid(0),
       dirty_or_tx(0),
       lock_state(LOCK_NONE), wrlock_ref(0), rdlock_ref(0) {
@@ -204,6 +207,8 @@ class ObjectCacher {
       os->objects.push_back(&set_item);
     }
     ~Object() {
+      assert(num_error_bh == 0);
+      assert(!write_error);
       assert(data.empty());
       assert(dirty_or_tx == 0);
       set_item.remove_myself();
@@ -234,6 +239,7 @@ class ObjectCacher {
       assert(data.count(bh->start()));
       data.erase(bh->start());
     }
+
     bool is_empty() { return data.empty(); }
 
     // mid-level
@@ -458,11 +464,15 @@ class ObjectCacher {
     Context *onfinish;
   public:
     C_RetryRead(ObjectCacher *_oc, OSDRead *r, ObjectSet *os, Context *c) : oc(_oc), rd(r), oset(os), onfinish(c) {}
-    void finish(int) {
-      int r = oc->_readx(rd, oset, onfinish, false);
-      if (r > 0 && onfinish) {
-        onfinish->finish(r);
-        delete onfinish;
+    void finish(int r) {
+      if (r < 0) {
+	if (onfinish)
+	  onfinish->complete(r);
+	return;
+      }
+      int ret = oc->_readx(rd, oset, onfinish, false);
+      if (ret != 0 && onfinish) {
+        onfinish->complete(ret);
       }
     }
   };
@@ -535,6 +545,7 @@ inline ostream& operator<<(ostream& out, ObjectCacher::BufferHead &bh)
   if (bh.is_clean()) out << " clean";
   if (bh.is_missing()) out << " missing";
   if (bh.bl.length() > 0) out << " firstbyte=" << (int)bh.bl[0];
+  if (bh.error) out << " error=" << bh.error;
   out << "]";
   return out;
 }

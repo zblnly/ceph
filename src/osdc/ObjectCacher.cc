@@ -26,8 +26,9 @@ ObjectCacher::BufferHead *ObjectCacher::Object::split(BufferHead *left, loff_t o
   ObjectCacher::BufferHead *right = new BufferHead(this);
   right->last_write_tid = left->last_write_tid;
   right->set_state(left->get_state());
+  right->error = left->error;
   right->snapc = left->snapc;
-  
+
   loff_t newleftlen = off - left->start();
   right->set_start(off);
   right->set_length(left->length() - newleftlen);
@@ -88,6 +89,11 @@ void ObjectCacher::Object::merge_left(BufferHead *left, BufferHead *right)
   left->last_write_tid =  MAX( left->last_write_tid, right->last_write_tid );
   left->last_write = MAX( left->last_write, right->last_write );
 
+  if (left->error || right->error) {
+    left->error =
+      left->error ? left->error : right->error;
+  }
+
   // waiters
   for (map<loff_t, list<Context*> >::iterator p = right->waitfor_read.begin();
        p != right->waitfor_read.end();
@@ -111,18 +117,21 @@ void ObjectCacher::Object::try_merge_bh(BufferHead *bh)
   if (p != data.begin()) {
     p--;
     if (p->second->end() == bh->start() &&
-	p->second->get_state() == bh->get_state()) {
+	p->second->get_state() == bh->get_state() &&
+	p->second->error == bh->error) {
       merge_left(p->second, bh);
       bh = p->second;
-    } else 
+    } else {
       p++;
+    }
   }
   // to the right?
   assert(p->second == bh);
   p++;
   if (p != data.end() &&
       p->second->start() == bh->end() &&
-      p->second->get_state() == bh->get_state()) 
+      p->second->get_state() == bh->get_state() &&
+      p->second->error == bh->error)
     merge_left(bh, p->second);
 }
 
@@ -177,7 +186,8 @@ int ObjectCacher::Object::map_read(OSDRead *rd,
     if (ex_it->oid != oid.oid) continue;
     
     ldout(oc->cct, 10) << "map_read " << ex_it->oid 
-             << " " << ex_it->offset << "~" << ex_it->length << dendl;
+		       << " " << ex_it->offset << "~" << ex_it->length
+		       << dendl;
     
     map<loff_t, BufferHead*>::iterator p = data.lower_bound(ex_it->offset);
     // p->first >= start
@@ -212,7 +222,7 @@ int ObjectCacher::Object::map_read(OSDRead *rd,
       if (p->first <= cur) {
         // have it (or part of it)
         BufferHead *e = p->second;
-        
+
         if (e->is_clean() ||
             e->is_dirty() ||
             e->is_tx()) {
@@ -248,7 +258,7 @@ int ObjectCacher::Object::map_read(OSDRead *rd,
         assert(0);
     }
   }
-  return(0);
+  return 0;
 }
 
 /*
@@ -345,9 +355,13 @@ ObjectCacher::BufferHead *ObjectCacher::Object::map_write(OSDWrite *wr)
 	    oc->mark_dirty(final);
 	    p--;  // move iterator back to final
 	    assert(p->second == final);
+	    // Note: it's safe to merge these even if they have had
+	    // write errors, since map_write() is scheduling a new
+	    // write, and a commit_set() will wait for this new write
             merge_left(final, bh);
-	  } else
+	  } else {
             final = bh;
+	  }
         }
         
         // keep going.
@@ -441,7 +455,6 @@ void ObjectCacher::Object::discard(loff_t off, loff_t len)
     oc->bh_remove(this, bh);
   }
 }
-
 
 
 /*** ObjectCacher ***/
@@ -566,10 +579,6 @@ void ObjectCacher::bh_read_finish(int64_t poolid, sobject_t oid, loff_t start,
 		<< " returned " << r
 		<< dendl;
 
-  if (r < 0) {
-    // TODO: fix bad read case
-  }
-
   if (bl.length() < length) {
     bufferptr bp(length - bl.length());
     bp.zero();
@@ -614,6 +623,13 @@ void ObjectCacher::bh_read_finish(int64_t poolid, sobject_t oid, loff_t start,
                        opos-bh->start(),
                        bh->length());
       mark_clean(bh);
+
+      if (r < 0 && r != -ENOENT) {
+	bh->error = r;
+      } else {
+	bh->error = 0;
+      }
+
       ldout(cct, 10) << "bh_read_finish read " << *bh << dendl;
       
       opos = bh->end();
@@ -627,7 +643,7 @@ void ObjectCacher::bh_read_finish(int64_t poolid, sobject_t oid, loff_t start,
            p++)
         ls.splice(ls.end(), p->second);
       bh->waitfor_read.clear();
-      finish_contexts(cct, ls);
+      finish_contexts(cct, ls, bh->error);
 
       // clean up?
       ob->try_merge_bh(bh);
@@ -735,10 +751,8 @@ void ObjectCacher::bh_write_commit(int64_t poolid, sobject_t oid, loff_t start,
 		<< oid 
 		<< " tid " << tid
 		<< " " << start << "~" << length
+		<< " returned " << r
 		<< dendl;
-  if (r < 0) {
-    // TODO: handle write error
-  }
 
   if (objects[poolid].count(oid) == 0) {
     ldout(cct, 7) << "bh_write_commit no object cache" << dendl;
@@ -772,12 +786,20 @@ void ObjectCacher::bh_write_commit(int64_t poolid, sobject_t oid, loff_t start,
         ldout(cct, 10) << "bh_write_commit newer tid on " << *bh << dendl;
         continue;
       }
-      
-      // ok!  mark bh clean.
-      mark_clean(bh);
-      ldout(cct, 10) << "bh_write_commit clean " << *bh << dendl;
+
+      if (r >= 0) {
+	// ok!  mark bh clean and error-free
+	bh->error = 0;
+	mark_clean(bh);
+	ldout(cct, 10) << "bh_write_commit clean " << *bh << dendl;
+      } else {
+	bh->error = r;
+	mark_dirty(bh);
+	ldout(cct, 10) << "bh_write_commit marking dirty again due to error "
+		       << *bh << dendl;
+      }
     }
-    
+
     // update last_commit.
     assert(ob->last_commit_tid < tid);
     ob->last_commit_tid = tid;
@@ -787,7 +809,7 @@ void ObjectCacher::bh_write_commit(int64_t poolid, sobject_t oid, loff_t start,
       list<Context*> ls;
       ls.splice(ls.begin(), ob->waitfor_commit[tid]);
       ob->waitfor_commit.erase(tid);
-      finish_contexts(cct, ls);
+      finish_contexts(cct, ls, r);
     }
 
     // is the entire object set now clean and fully committed?
@@ -887,7 +909,7 @@ bool ObjectCacher::is_cached(ObjectSet *oset, vector<ObjectExtent>& extents, sna
  */
 int ObjectCacher::readx(OSDRead *rd, ObjectSet *oset, Context *onfinish)
 {
-  _readx(rd, oset, onfinish, true);
+  return _readx(rd, oset, onfinish, true);
 }
 
 int ObjectCacher::_readx(OSDRead *rd, ObjectSet *oset, Context *onfinish,
@@ -895,6 +917,7 @@ int ObjectCacher::_readx(OSDRead *rd, ObjectSet *oset, Context *onfinish,
 {
   assert(lock.is_locked());
   bool success = true;
+  int error = 0;
   list<BufferHead*> hit_ls;
   uint64_t bytes_in_cache = 0;
   uint64_t bytes_not_in_cache = 0;
@@ -952,6 +975,8 @@ int ObjectCacher::_readx(OSDRead *rd, ObjectSet *oset, Context *onfinish,
            bh_it != hits.end();
            bh_it++) {
 	ldout(cct, 10) << "readx hit bh " << *bh_it->second << dendl;
+	if (bh_it->second->error)
+	  error = bh_it->second->error;
         hit_ls.push_back(bh_it->second);
         bytes_in_cache += bh_it->second->length();
       }
@@ -1030,7 +1055,7 @@ int ObjectCacher::_readx(OSDRead *rd, ObjectSet *oset, Context *onfinish,
   
   // ok, assemble into result buffer.
   uint64_t pos = 0;
-  if (rd->bl) {
+  if (rd->bl && !error) {
     rd->bl->clear();
     for (map<uint64_t,bufferlist>::iterator i = stripe_map.begin();
 	 i != stripe_map.end();
@@ -1054,7 +1079,7 @@ int ObjectCacher::_readx(OSDRead *rd, ObjectSet *oset, Context *onfinish,
   if (pos > (uint64_t)INT_MAX)
     pos = INT_MAX;
 
-  return pos;
+  return error ? error : pos;
 }
 
 
