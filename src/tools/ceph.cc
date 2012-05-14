@@ -225,7 +225,10 @@ int main(int argc, const char **argv)
     case CEPH_TOOL_MODE_ONE_SHOT_OBSERVER: // fall through
     case CEPH_TOOL_MODE_OBSERVER: {
       ctx->lock.Lock();
-      send_observe_requests(ctx);
+      ctx->mc.set_want_keys(CEPH_ENTITY_TYPE_ANY);
+      ctx->mc.sub_want("osdmap", 0, 0);
+      ctx->mc.sub_want("mdsmap", 0, 0);
+      ctx->mc.sub_want("monmap", 0, 0);
       ctx->lock.Unlock();
       break;
     }
