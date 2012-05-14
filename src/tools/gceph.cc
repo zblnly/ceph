@@ -57,7 +57,10 @@ static int cephtool_run_gui(CephToolCtx *ctx, int argc,
 
   // TODO: make sure that we capture the log this generates in the GUI
   ctx->lock.Lock();
-  send_observe_requests(ctx);
+  ctx->mc.set_want_keys(CEPH_ENTITY_TYPE_ANY);
+  ctx->mc.sub_want("osdmap", 0, 0);
+  ctx->mc.sub_want("mdsmap", 0, 0);
+  ctx->mc.sub_want("monmap", 0, 0);
   ctx->lock.Unlock();
 
   return run_gui(ctx, argc, (char **)argv);
