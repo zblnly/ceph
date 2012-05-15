@@ -229,6 +229,7 @@ int main(int argc, const char **argv)
       ctx->mc.sub_want("osdmap", 0, 0);
       ctx->mc.sub_want("mdsmap", 0, 0);
       ctx->mc.sub_want("monmap", 0, 0);
+      ctx->mc.renew_subs();
       ctx->lock.Unlock();
       break;
     }

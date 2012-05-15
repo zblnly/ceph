@@ -223,6 +223,8 @@ public:
   class OSDMonitor *osdmon() { return (class OSDMonitor *)paxos_service[PAXOS_OSDMAP]; }
   class AuthMonitor *authmon() { return (class AuthMonitor *)paxos_service[PAXOS_AUTH]; }
 
+  class LogMonitor *logmon() { return (class LogMonitor*) paxos_service[PAXOS_LOG]; }
+
   friend class Paxos;
   friend class OSDMonitor;
   friend class MDSMonitor;

@@ -1619,6 +1619,9 @@ void Monitor::handle_subscribe(MMonSubscribe *m)
       }
     } else if (p->first == "monmap") {
       check_sub(s->sub_map["monmap"]);
+    } else if ((p->first == "log-error") 
+	|| (p->first == "log-info") || (p->first == "log-warn")) {
+//      logmon()->check_sub(s->sub_map[p->first]);
     }
   }
 

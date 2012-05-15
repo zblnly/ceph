@@ -283,6 +283,8 @@ void LogMonitor::_updated_log(MLog *m)
 {
   dout(7) << "_updated_log for " << m->get_orig_source_inst() << dendl;
   mon->send_reply(m, new MLogAck(m->fsid, m->entries.rbegin()->seq));
+  check_subs(m);
+
   m->put();
 }
 
@@ -316,4 +318,97 @@ bool LogMonitor::prepare_command(MMonCommand *m)
   getline(ss, rs);
   mon->reply_command(m, err, rs, paxos->get_version());
   return false;
+}
+
+void LogMonitor::check_subs(MLog *m)
+{
+/*
+  map<string, int> types;
+  types["log-debug"]  = CLOG_DEBUG;
+  types["log-info"]   = CLOG_INFO;
+  types["log-sec"]    = CLOG_SEC;
+  types["log-warn"]   = CLOG_WARN;
+  types["log-error"]  = CLOG_ERROR;
+*/
+
+  map<int, string> types;
+  types[CLOG_DEBUG] = "log-debug";
+  types[CLOG_INFO]  = "log-info";
+  types[CLOG_SEC]   = "log-sec";
+  types[CLOG_WARN]  = "log-warn";
+  types[CLOG_ERROR] = "log-error";
+
+  std::deque<LogEntry>::iterator it = m->entries.begin();
+
+  for (; it != m->entries.end(); it++) {
+    LogEntry e = *it;
+
+    if (!mon->session_map.subs.count(types[e.type]))
+      continue;
+
+    xlist<Subscription*> *subs = mon->session_map.subs[types[e.type]];
+    xlist<Subscription*>::iterator subs_it = subs->begin();
+    for (; !subs_it.end(); ++subs_it) {
+      Subscription *s = *subs_it;
+      MLog *msg = new MLog(m->fsid);
+      msg->entries.push_back(e);
+      mon->messenger->send_message(msg, s->session->inst);
+
+      if (s->onetime)
+	mon->session_map.remove_sub(s);
+    }
+  }
+
+#if 0
+  map<string, xlist<Subscription*> >::iterator s;
+  s = mon->session_map.subs.begin();
+
+  map<int, xlist<Subscription*>> subs;
+
+  for (; s != mon->session_map.subs.end(); s++) {
+    if (s->first.substr(0,3) != "log")
+      continue;
+
+    /* get these subscriptions' log level */
+    map<string, int>::iterator f;
+    f = types.find(it->first);
+    if (f == types.end())
+      continue;
+    int level = f->second;
+
+    if (!subs.exist(level)) {
+      subs[level] = new xlist<Subscription*>;
+    }
+    for (xlist<Subscription*>::iterator i = s->second.begin();
+	i != s->second.end(); i++) {
+      subs[level]->push_back(*i);
+    }
+  }
+
+  map<int, MLog*> logs;
+  for (int l = 0; l < 5; l ++) {
+    MLog *log = new MLog;
+    log->fsid = m->fsid;
+  }
+
+  std::deque<LogEntry>::iterator entry_it = m->entries.begin();
+  for (; entry_it != m->entries.end(); entry_it++) {
+    LogEntry *e = *entry_it;
+    if (!subs.exist(e->type))
+      continue;
+
+    for (int l = 0; l <= e->type; l++)
+      logs[l]->entries.push_back(e);
+  }
+
+  map<int,xlist<Subscription*> >::iterator subs_it = subs.begin();
+  for (; subs_it != subs.end(); subs_it++) {
+    level = subs_it->first;
+    xlist<Subscription*>::iterator *i = subs_it->second.begin();
+
+    mon->messenger->send_message(logs[level], *i->session->inst);
+    if (*i->onetime)
+      mon->session_map.remove_sub(*i);
+  }
+#endif
 }

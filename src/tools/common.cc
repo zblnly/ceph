@@ -423,7 +423,7 @@ public:
     if (con->get_peer_type() == CEPH_ENTITY_TYPE_MON) {
       ctx->lock.Lock();
       if (ceph_tool_mode != CEPH_TOOL_MODE_CLI_INPUT) {
-	send_observe_requests(ctx);
+//	send_observe_requests(ctx);
       }
       if (pending_cmd.size())
 	send_command(ctx);

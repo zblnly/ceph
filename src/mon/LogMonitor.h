@@ -61,6 +61,9 @@ private:
   LogMonitor(Monitor *mn, Paxos *p) : PaxosService(mn, p) { }
   
   void tick();  // check state, take actions
+
+  void check_subs(MLog *m);
+  void check_sub(MLog *m, Subscription *sub);
 };
 
 #endif
